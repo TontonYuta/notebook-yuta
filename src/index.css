@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Patrick+Hand&display=swap');
 @import url('https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css');
+@import url('https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css');
 @import "tailwindcss";
 
 @theme {
@@ -38,6 +39,11 @@ body {
   border-left: 10px solid var(--color-red-pen);
   position: relative;
 }
+
+.notebook-paper[data-color="pink"] { border-left-color: var(--color-pastel-pink); }
+.notebook-paper[data-color="blue"] { border-left-color: var(--color-pastel-blue); }
+.notebook-paper[data-color="green"] { border-left-color: var(--color-pastel-green); }
+.notebook-paper[data-color="yellow"] { border-left-color: var(--color-highlighter); }
 
 .notebook-paper::before {
   content: '';
@@ -246,6 +252,46 @@ body {
   text-decoration-style: wavy;
   text-decoration-color: var(--color-pastel-blue);
   text-underline-offset: 4px;
+}
+
+.prose-notebook mark {
+  background-color: var(--color-highlighter);
+  color: var(--color-ink);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.prose-notebook details {
+  background: rgba(0,0,0,0.02);
+  border: 1px solid rgba(26, 35, 126, 0.2);
+  border-radius: 8px;
+  padding: 8px 16px;
+  margin-bottom: 32px;
+}
+
+.prose-notebook summary {
+  cursor: pointer;
+  font-weight: bold;
+  outline: none;
+  margin-bottom: 8px;
+}
+
+.prose-notebook summary:hover {
+  color: var(--color-pastel-blue);
+}
+
+.prose-notebook .footnotes {
+  border-top: 2px dashed rgba(26, 35, 126, 0.2);
+  margin-top: 48px;
+  padding-top: 16px;
+  font-size: 0.9em;
+  opacity: 0.8;
+}
+
+.prose-notebook sup a {
+  text-decoration: none;
+  color: var(--color-green-pen);
+  font-weight: bold;
 }
 
 .prose-notebook table {

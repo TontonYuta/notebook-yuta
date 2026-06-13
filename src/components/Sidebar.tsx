@@ -177,6 +177,7 @@ export function Sidebar({
                         e.stopPropagation();
                         onChangeColor?.(notebook.id, c);
                       }}
+                      onMouseDown={(e) => e.preventDefault()}
                       className={`w-5 h-5 rounded-full border-2 ${COLOR_MAP[c || 'default']} ${(notebook.color || 'default') === c ? 'ring-2 ring-offset-1 ring-[var(--color-ink)]' : 'opacity-80 hover:opacity-100 hover:scale-110'}`}
                     />
                   ))}

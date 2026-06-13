@@ -55,6 +55,7 @@ $$ \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix} $$
 - **In đậm**: bọc trong \`**\`
 - *In nghiêng*: bọc trong \`*\`
 - Gạch ngang: bọc trong \`~~\`
+- ==Highlight chữ==: bọc trong \`==\`
 
 Danh sách:
 - Một quyển vở đẹp
@@ -63,9 +64,27 @@ Danh sách:
 1. Học bài
 2. Đi ngủ
 
-## 3. Khám Phá Chức Năng
-- Bạn đang trong chế độ **Chia đôi**, gõ bên trái là bên phải hiện ra kết quả liền! Thử xoá dòng này đi xem.
-- Bấm nút giấy nhớ góc trên kia kìa để dán thêm ghi chú.
+## 3. Các chức năng mở rộng mới cập nhật!
+Bạn có thể kết hợp HTML hoặc các ký hiệu Markdown mới:
+
+**A. Liên kết neo (Thử bấm vào nhé!):**
+[Về phần Gõ Công Thức](#1-gõ-công-thức-toán-học-latex)
+
+**B. Chú thích (Footnote):**
+Đây là một câu có nguồn[^1]. Càng nhiều nguồn thì càng uy tín[^2].
+
+**C. Nội dung thu gọn:**
+<details>
+  <summary>Mở tôi ra!</summary>
+  Bạn có thể ẩn những phần dài dòng vào đây. Gọn gàng phải không nào?
+</details>
+
+[^1]: Bạn sẽ thấy giải thích xuất hiện ở cuối trang.
+[^2]: Tự động đẩy xuống dưới cùng!
+
+## 4. Khám Phá Chức Năng Khác
+- Bạn đang trong chế độ **Chia đôi**, gõ bên trái là bên phải hiện ra kết quả liền!
+- Bấm nút giấy nhớ thả ghim thả ga.
 - Bấm biểu tượng \`Máy In\` để lưu ra file PDF nhé!`,
         lastModified: Date.now(),
         stickies: []

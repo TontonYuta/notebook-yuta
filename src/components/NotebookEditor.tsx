@@ -3,8 +3,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSlug from 'rehype-slug';
+import rehypeHighlight from 'rehype-highlight';
+import remarkBreaks from 'remark-breaks';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { Notebook, StickyNote } from '../types';
-import { Columns, Eye, Edit3, Printer, StickyNote as StickyIcon, X, Plus, Search, ChevronUp, ChevronDown, Pin } from 'lucide-react';
+import { Columns, Eye, Edit3, Printer, StickyNote as StickyIcon, X, Plus, Search, ChevronUp, ChevronDown, Pin, HelpCircle } from 'lucide-react';
 
 interface Props {
   notebook: Notebook | null;
@@ -14,12 +19,32 @@ interface Props {
 
 type ViewMode = 'edit' | 'split' | 'preview';
 
+const processHighlight = (text: string) => {
+  const parts = text.split(/(```[\s\S]*?```|`[^`]+`)/g);
+  return parts.map((part, index) => {
+    if (index % 2 === 1) return part; // Inside code block
+    return part.replace(/==([^=]+)==/g, '<mark>$1</mark>');
+  }).join('');
+};
+
+const customSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    '*': [...(defaultSchema.attributes?.['*'] || []), 'style', 'className', 'align'],
+    span: ['style'],
+    p: ['align'],
+    img: ['src', 'alt', 'width', 'height', 'align']
+  }
+};
+
 export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMatch, setCurrentMatch] = useState(-1);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [showHint, setShowHint] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const searchMatches = useMemo(() => {
@@ -239,6 +264,16 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
             </div>
           )}
 
+          {notebook.type !== 'pdf' && (
+            <button 
+              onClick={() => setShowHint(true)}
+              className="p-2 bg-white/60 backdrop-blur-sm rounded-full border-2 border-[var(--color-ink)] hover:bg-[var(--color-highlighter)] transition-colors cursor-pointer text-[var(--color-ink)] shadow-sm"
+              title="Cú pháp Markdown & LaTeX"
+            >
+              <HelpCircle size={20} strokeWidth={2.5} />
+            </button>
+          )}
+
           <button 
             onClick={addStickyNote}
             className="p-2 bg-white/60 backdrop-blur-sm rounded-full border-2 border-[var(--color-ink)] hover:bg-[var(--color-pastel-pink)] transition-colors cursor-pointer text-[var(--color-ink)] shadow-sm"
@@ -289,7 +324,10 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
         
         {/* Editor Half */}
         {notebook.type !== 'pdf' && (viewMode === 'edit' || viewMode === 'split') && (
-          <div className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' ? 'hidden md:flex' : 'flex'} print:hidden`}>
+          <div 
+            className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' ? 'hidden md:flex' : 'flex'} print:hidden`}
+            data-color={notebook.color || 'default'}
+          >
             <div className="flex-grow overflow-y-auto w-full scroll-smooth relative" id="editor-scroller">
               <textarea
                 ref={textareaRef}
@@ -320,21 +358,24 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
 
         {/* Preview Half (Markdown or PDF) */}
         {((notebook.type !== 'pdf' && (viewMode === 'preview' || viewMode === 'split')) || notebook.type === 'pdf') && (
-          <div className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' && notebook.type !== 'pdf' ? 'flex' : 'flex'} print:h-auto print:block`}>
+          <div 
+            className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' && notebook.type !== 'pdf' ? 'flex' : 'flex'} print:h-auto print:block`}
+            data-color={notebook.color || 'default'}
+          >
             <div className="flex-grow overflow-y-auto w-full scroll-smooth overflow-x-auto p-4 relative print:overflow-visible print:h-auto" id="preview-scroller">
               {notebook.type === 'pdf' ? (
                 <iframe
-                  src={notebook.content}
+                  src={notebook.content || undefined}
                   className="w-full h-[80vh] border-none rounded print:hidden relative z-0"
                   title="PDF Viewer"
                 />
               ) : (
                 <div className="notebook-body bg-transparent lined-paper prose-notebook pl-[60px] pr-8 pt-8 pb-32 min-h-full h-fit flex flex-col min-w-0 relative z-0 print:h-auto print:min-h-0 print:pb-0">
                   <ReactMarkdown 
-                    remarkPlugins={[remarkMath, remarkGfm]} 
-                    rehypePlugins={[rehypeKatex]}
+                    remarkPlugins={[remarkMath, remarkGfm, remarkBreaks]} 
+                    rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, customSchema], rehypeSlug, rehypeHighlight]}
                   >
-                    {notebook.content || '*Chưa có nội dung...*'}
+                    {processHighlight(notebook.content || '*Chưa có nội dung...*')}
                   </ReactMarkdown>
                 </div>
               )}
@@ -352,6 +393,71 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
           </div>
         )}
       </div>
+
+      {/* Hint Modal */}
+      {showHint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm print:hidden">
+          <div className="bg-[var(--color-cream)] border-2 border-[var(--color-ink)] rounded-2xl shadow-[8px_8px_0px_var(--color-ink)] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b-2 border-dashed border-[var(--color-ink)]/20 bg-[var(--color-pastel-blue)]/20">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <HelpCircle size={24} className="text-[var(--color-ink)]" />
+                Hướng dẫn cú pháp (Cheat Sheet)
+              </h2>
+              <button onClick={() => setShowHint(false)} className="p-1 hover:bg-black/10 rounded-full transition-colors cursor-pointer">
+                <X size={24} strokeWidth={2.5} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto overflow-x-hidden flex-grow notebook-body !text-base space-y-6">
+              <section>
+                <h3 className="font-bold text-lg mb-2 text-[var(--color-red-pen)] flex items-center gap-2 border-b-2 border-[var(--color-ink)]/10 pb-1">1. Định dạng cơ bản</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><strong>In đậm</strong>: <code>**nội dung**</code></li>
+                  <li><em>In nghiêng</em>: <code>*nội dung*</code></li>
+                  <li><del>Gạch ngang</del>: <code>~~nội dung~~</code></li>
+                  <li><mark>Highlight vàng</mark>: <code>==nội dung==</code></li>
+                  <li>Chú thích (Footnote): <code>Nguồn[^1]</code> và giải thích ở dưới cùng <code>[^1]: Chi tiết nguồn</code></li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="font-bold text-lg mb-2 text-[var(--color-green-pen)] border-b-2 border-[var(--color-ink)]/10 flex items-center gap-2 pb-1">2. Toán học (LaTeX)</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Công thức cùng dòng: <code>$E=mc^2$</code></li>
+                  <li>Công thức khối (căn giữa):<br/>
+                    <code>$$<br/>{"\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}"}<br/>$$</code>
+                  </li>
+                  <li>Phân số: <code>{"$\\frac{a}{b}$"}</code>, Căn bậc hai: <code>{"$\\sqrt{x}$"}</code></li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="font-bold text-lg mb-2 text-purple-600 border-b-2 border-[var(--color-ink)]/10 flex items-center gap-2 pb-1">3. Cấu trúc HTML & Nâng cao</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Đổi màu chữ: <code>&lt;span style="color: red;"&gt;chữ đỏ&lt;/span&gt;</code></li>
+                  <li>Căn lề hình ảnh: <code>&lt;img align="center" src="..." width="300"/&gt;</code></li>
+                  <li>Khối nội dung ẩn/hiện (Collapsible):<br/>
+                    <pre className="bg-black/5 p-2 rounded border border-[var(--color-ink)]/20 text-sm mt-1 whitespace-pre-wrap"><code>{"<details>\n  <summary><b>Bấm xem chi tiết</b></summary>\n  Nội dung bị ẩn đi...\n</details>"}</code></pre>
+                  </li>
+                  <li>Liên kết neo (TOC): <code>{"[Tên mục](#1-ten-muc)"}</code> (Viết thường, thay dấu cách bằng gạch nối)</li>
+                  <li>Bỏ qua markdown bằng gạch chéo ngược: <code>{"\\*Không bị in nghiêng\\*"}</code></li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="font-bold text-lg mb-2 border-b-2 border-[var(--color-ink)]/10 flex items-center gap-2 pb-1">4. Khối Code & Khác</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Code trên cùng 1 dòng: <code>`console.log("hello")`</code></li>
+                  <li>Khối Code nhiều dòng có màu cú pháp:
+                    <pre className="bg-black/5 p-2 rounded border border-[var(--color-ink)]/20 text-sm mt-1"><code>```javascript<br/>function add(a, b) &#123;<br/>  return a + b;<br/>&#125;<br/>```</code></pre>
+                  </li>
+                  <li>Trích dẫn (Quote): <code>&gt; Câu trích dẫn</code></li>
+                </ul>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
