@@ -4,7 +4,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import { Notebook, StickyNote } from '../types';
-import { Columns, Eye, Edit3, Printer, StickyNote as StickyIcon, X, Plus, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { Columns, Eye, Edit3, Printer, StickyNote as StickyIcon, X, Plus, Search, ChevronUp, ChevronDown, Pin } from 'lucide-react';
 
 interface Props {
   notebook: Notebook | null;
@@ -140,11 +140,17 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
   };
 
   const addStickyNote = () => {
+    let scrollY = 0;
+    const scroller = viewMode === 'preview' ? document.getElementById('preview-scroller') : document.getElementById('editor-scroller');
+    if (scroller) {
+      scrollY = scroller.scrollTop;
+    }
+
     const newSticky: StickyNote = {
       id: crypto.randomUUID(),
       content: '',
       color: ['pink', 'green', 'blue', 'yellow'][Math.floor(Math.random() * 4)] as any,
-      position: { x: 50 + Math.random() * 100, y: 50 + Math.random() * 100 },
+      position: { x: 50 + Math.random() * 100, y: scrollY + 50 + Math.random() * 100 },
       rotation: Math.random() * 6 - 3,
     };
     onUpdateStickies([...notebook.stickies, newSticky]);
@@ -283,8 +289,8 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
         
         {/* Editor Half */}
         {notebook.type !== 'pdf' && (viewMode === 'edit' || viewMode === 'split') && (
-          <div className={`flex-1 min-w-0 h-full notebook-paper flex flex-col ${viewMode === 'split' ? 'hidden md:flex' : 'flex'} print:hidden`}>
-            <div className="flex-grow overflow-y-auto w-full scroll-smooth" id="editor-scroller">
+          <div className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' ? 'hidden md:flex' : 'flex'} print:hidden`}>
+            <div className="flex-grow overflow-y-auto w-full scroll-smooth relative" id="editor-scroller">
               <textarea
                 ref={textareaRef}
                 value={notebook.content}
@@ -295,25 +301,35 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
                 }}
                 onClick={() => setIsSearchActive(false)}
                 placeholder="Gõ nội dung Markdown & LaTeX tại đây..."
-                className="w-full min-h-full resize-none outline-none notebook-body bg-transparent lined-paper pl-[60px] pr-8 pt-8 pb-32 overflow-hidden block"
+                className="w-full min-h-full resize-none outline-none notebook-body bg-transparent lined-paper pl-[60px] pr-8 pt-8 pb-32 overflow-hidden block relative z-0"
                 spellCheck={false}
               />
+              {/* Sticky Notes for Editor */}
+              {notebook.stickies.map(sticky => (
+                <DraggableSticky 
+                  key={sticky.id} 
+                  sticky={sticky} 
+                  onUpdate={(content) => updateSticky(sticky.id, content)}
+                  onDelete={() => deleteSticky(sticky.id)}
+                  onMove={(x, y) => updateStickyPos(sticky.id, x, y)}
+                />
+              ))}
             </div>
           </div>
         )}
 
         {/* Preview Half (Markdown or PDF) */}
         {((notebook.type !== 'pdf' && (viewMode === 'preview' || viewMode === 'split')) || notebook.type === 'pdf') && (
-          <div className={`flex-1 min-w-0 h-full notebook-paper flex flex-col ${viewMode === 'split' && notebook.type !== 'pdf' ? 'flex' : 'flex'} print:h-auto print:block`}>
-            <div className="flex-grow overflow-y-auto w-full scroll-smooth overflow-x-auto p-4 print:overflow-visible print:h-auto">
+          <div className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' && notebook.type !== 'pdf' ? 'flex' : 'flex'} print:h-auto print:block`}>
+            <div className="flex-grow overflow-y-auto w-full scroll-smooth overflow-x-auto p-4 relative print:overflow-visible print:h-auto" id="preview-scroller">
               {notebook.type === 'pdf' ? (
                 <iframe
                   src={notebook.content}
-                  className="w-full h-[80vh] border-none rounded print:hidden"
+                  className="w-full h-[80vh] border-none rounded print:hidden relative z-0"
                   title="PDF Viewer"
                 />
               ) : (
-                <div className="notebook-body bg-transparent lined-paper prose-notebook pl-[60px] pr-8 pt-8 pb-32 min-h-full h-fit flex flex-col min-w-0 print:h-auto print:min-h-0 print:pb-0">
+                <div className="notebook-body bg-transparent lined-paper prose-notebook pl-[60px] pr-8 pt-8 pb-32 min-h-full h-fit flex flex-col min-w-0 relative z-0 print:h-auto print:min-h-0 print:pb-0">
                   <ReactMarkdown 
                     remarkPlugins={[remarkMath, remarkGfm]} 
                     rehypePlugins={[rehypeKatex]}
@@ -322,20 +338,19 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
                   </ReactMarkdown>
                 </div>
               )}
+              {/* Sticky Notes for Preview */}
+              {notebook.stickies.map(sticky => (
+                <DraggableSticky 
+                  key={`preview-${sticky.id}`} 
+                  sticky={sticky} 
+                  onUpdate={(content) => updateSticky(sticky.id, content)}
+                  onDelete={() => deleteSticky(sticky.id)}
+                  onMove={(x, y) => updateStickyPos(sticky.id, x, y)}
+                />
+              ))}
             </div>
           </div>
         )}
-
-        {/* Sticky Notes */}
-        {notebook.stickies.map(sticky => (
-          <DraggableSticky 
-            key={sticky.id} 
-            sticky={sticky} 
-            onUpdate={(content) => updateSticky(sticky.id, content)}
-            onDelete={() => deleteSticky(sticky.id)}
-            onMove={(x, y) => updateStickyPos(sticky.id, x, y)}
-          />
-        ))}
       </div>
     </div>
   );
@@ -374,7 +389,7 @@ function DraggableSticky({ sticky, onUpdate, onDelete, onMove }: { sticky: Stick
 
   return (
     <div 
-      className={`absolute w-48 min-h-[140px] p-3 sticky-note flex flex-col gap-1 shadow-md z-10 ${colorMap[sticky.color] || colorMap.yellow} print:hidden`}
+      className={`absolute w-48 min-h-[140px] p-3 pt-4 sticky-note flex flex-col gap-1 shadow-md z-10 ${colorMap[sticky.color] || colorMap.yellow} print:shadow-none print:border print:border-gray-200`}
       style={{ 
         transform: `rotate(${sticky.rotation}deg)`,
         left: sticky.position.x,
@@ -382,8 +397,13 @@ function DraggableSticky({ sticky, onUpdate, onDelete, onMove }: { sticky: Stick
         cursor: isDragging ? 'grabbing' : 'auto'
       }}
     >
+      {/* Pin Icon overlaying the top center */}
+      <div className="absolute top-[-10px] left-1/2 -translate-x-1/2 text-red-500 drop-shadow-md z-20">
+        <Pin size={28} className="fill-red-500" strokeWidth={1.5} />
+      </div>
+
       <div 
-        className="w-full h-6 cursor-grab active:cursor-grabbing flex justify-between items-center opacity-40 hover:opacity-100 transition-opacity"
+        className="w-full h-6 cursor-grab active:cursor-grabbing flex justify-between items-center opacity-40 hover:opacity-100 transition-opacity print:hidden"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -402,7 +422,7 @@ function DraggableSticky({ sticky, onUpdate, onDelete, onMove }: { sticky: Stick
         value={sticky.content}
         onChange={e => onUpdate(e.target.value)}
         placeholder="Ghi nhớ..."
-        className="w-full flex-grow bg-transparent outline-none resize-none notebook-body !line-height-[1.4] !text-base"
+        className="w-full flex-grow bg-transparent outline-none resize-none notebook-body !line-height-[1.4] !text-base print:overflow-hidden print:resize-none"
         spellCheck={false}
       />
     </div>
