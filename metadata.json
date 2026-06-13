@@ -1,0 +1,6 @@
+{
+  "name": "Notebook Offline",
+  "description": "An offline notebook app with a handwritten studygram style",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
