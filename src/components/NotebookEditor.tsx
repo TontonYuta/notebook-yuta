@@ -8,6 +8,7 @@ import rehypeSlug from 'rehype-slug';
 import rehypeHighlight from 'rehype-highlight';
 import remarkBreaks from 'remark-breaks';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import getCaretCoordinates from 'textarea-caret';
 import { Notebook, StickyNote } from '../types';
 import { Columns, Eye, Edit3, Printer, StickyNote as StickyIcon, X, Plus, Search, ChevronUp, ChevronDown, Pin, HelpCircle } from 'lucide-react';
 
@@ -20,21 +21,23 @@ interface Props {
 type ViewMode = 'edit' | 'split' | 'preview';
 
 const processHighlight = (text: string) => {
-  const parts = text.split(/(```[\s\S]*?```|`[^`]+`)/g);
+  const parts = text.split(/(```[\s\S]*?```|`[^`]+`|\$\$[\s\S]*?\$\$|\$[^$]+\$)/g);
   return parts.map((part, index) => {
-    if (index % 2 === 1) return part; // Inside code block
+    if (index % 2 === 1) return part; // Inside code block or math
     return part.replace(/==([^=]+)==/g, '<mark>$1</mark>');
   }).join('');
 };
 
 const customSchema = {
   ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames || []), 'mark', 'details', 'summary', 'iframe'],
   attributes: {
     ...defaultSchema.attributes,
     '*': [...(defaultSchema.attributes?.['*'] || []), 'style', 'className', 'align'],
     span: ['style'],
     p: ['align'],
-    img: ['src', 'alt', 'width', 'height', 'align']
+    img: ['src', 'alt', 'width', 'height', 'align'],
+    iframe: ['src', 'width', 'height', 'allowfullscreen', 'allow', 'frameborder']
   }
 };
 
@@ -122,6 +125,27 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
   const clearSearch = () => {
     setSearchQuery('');
     setIsSearchActive(false);
+  };
+
+  const handleCaretCenter = (smooth = false) => {
+    if (!textareaRef.current) return;
+    const scroller = document.getElementById('editor-scroller');
+    if (!scroller) return;
+
+    try {
+      const caret = getCaretCoordinates(textareaRef.current, textareaRef.current.selectionEnd);
+      const centerY = scroller.clientHeight / 2;
+      // top offset is the padding-top of the textarea essentially, getCaretCoordinates usually handles this if styles match.
+      // caret.top is the distance from the top of the textarea.
+      const targetScroll = caret.top - centerY + (caret.height || 20) / 2;
+      
+      scroller.scrollTo({
+        top: Math.max(0, targetScroll),
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    } catch (e) {
+      console.error('Failed to center caret', e);
+    }
   };
 
   if (!notebook) {
@@ -328,20 +352,31 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
             className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' ? 'hidden md:flex' : 'flex'} print:hidden`}
             data-color={notebook.color || 'default'}
           >
-            <div className="flex-grow overflow-y-auto w-full scroll-smooth relative" id="editor-scroller">
-              <textarea
-                ref={textareaRef}
-                value={notebook.content}
-                onChange={(e) => {
-                  e.target.style.height = 'auto';
-                  e.target.style.height = e.target.scrollHeight + 'px';
-                  onChange(e.target.value);
-                }}
-                onClick={() => setIsSearchActive(false)}
-                placeholder="Gõ nội dung Markdown & LaTeX tại đây..."
-                className="w-full min-h-full resize-none outline-none notebook-body bg-transparent lined-paper pl-[60px] pr-8 pt-8 pb-32 overflow-hidden block relative z-0"
-                spellCheck={false}
-              />
+            <div className="flex-grow overflow-y-auto w-full relative" id="editor-scroller">
+              <div className="grid w-full h-fit relative">
+                <textarea
+                  ref={textareaRef}
+                  value={notebook.content}
+                  onChange={(e) => {
+                    onChange(e.target.value);
+                    // allow react to render, then we scroll
+                    requestAnimationFrame(() => handleCaretCenter(false));
+                  }}
+                  onSelect={() => {
+                    requestAnimationFrame(() => handleCaretCenter(false));
+                  }}
+                  onClick={() => {
+                    setIsSearchActive(false);
+                    requestAnimationFrame(() => handleCaretCenter(false));
+                  }}
+                  placeholder="Gõ nội dung Markdown & LaTeX tại đây..."
+                  className="w-full col-start-1 row-start-1 resize-none outline-none notebook-body bg-transparent lined-paper pl-[60px] pr-8 pt-8 pb-[50vh] overflow-hidden block relative z-0"
+                  spellCheck={false}
+                />
+                <div className="w-full col-start-1 row-start-1 notebook-body bg-transparent lined-paper pl-[60px] pr-8 pt-8 pb-[50vh] whitespace-pre-wrap break-words invisible pointer-events-none overflow-hidden" aria-hidden="true">
+                  {notebook.content + ' \n'}
+                </div>
+              </div>
               {/* Sticky Notes for Editor */}
               {notebook.stickies.map(sticky => (
                 <DraggableSticky 
@@ -370,10 +405,10 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
                   title="PDF Viewer"
                 />
               ) : (
-                <div className="notebook-body bg-transparent lined-paper prose-notebook pl-[60px] pr-8 pt-8 pb-32 min-h-full h-fit flex flex-col min-w-0 relative z-0 print:h-auto print:min-h-0 print:pb-0">
+                <div className="notebook-body bg-transparent lined-paper prose-notebook pl-[60px] pr-8 pt-8 pb-[50vh] min-h-full h-fit flex flex-col min-w-0 relative z-0 print:h-auto print:min-h-0 print:pb-0">
                   <ReactMarkdown 
                     remarkPlugins={[remarkMath, remarkGfm, remarkBreaks]} 
-                    rehypePlugins={[rehypeKatex, rehypeRaw, [rehypeSanitize, customSchema], rehypeSlug, rehypeHighlight]}
+                    rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema], rehypeKatex, rehypeSlug, rehypeHighlight]}
                   >
                     {processHighlight(notebook.content || '*Chưa có nội dung...*')}
                   </ReactMarkdown>
