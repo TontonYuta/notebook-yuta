@@ -98,9 +98,13 @@ body {
 
 /* Print CSS for PDF export */
 @media print {
+  @page {
+    margin: 20mm;
+  }
+
   body {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
     background: white !important;
     height: auto !important;
     overflow: visible !important;
@@ -145,6 +149,11 @@ body {
     height: auto !important;
     box-shadow: none !important;
     margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .lined-paper {
+    background-image: none !important;
   }
   
   img, svg, pre, blockquote, tr {
