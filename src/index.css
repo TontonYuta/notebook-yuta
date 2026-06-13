@@ -111,6 +111,10 @@ body {
     overflow: visible !important;
   }
 
+  body.printing-mode .notebook-editor-container:not(.is-printing) {
+    display: none !important;
+  }
+
   .print\:hidden, .no-print {
     display: none !important;
   }

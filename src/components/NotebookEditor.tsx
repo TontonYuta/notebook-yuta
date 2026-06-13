@@ -19,6 +19,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMatch, setCurrentMatch] = useState(-1);
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const searchMatches = useMemo(() => {
@@ -108,21 +109,34 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
 
   const handlePrint = () => {
     if (notebook.type === 'pdf') {
-      const iframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
-      if (iframe && iframe.contentWindow) {
-        try {
+      try {
+        const iframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
+        if (iframe && iframe.contentWindow) {
           iframe.contentWindow.print();
           return;
-        } catch (e) {
-          console.error("Could not print iframe directly", e);
         }
+      } catch (e) {
+        console.error("Could not print iframe directly, falling back to download", e);
       }
+      
+      // Fallback: download the PDF if direct print fails or is blocked
+      const link = document.createElement('a');
+      link.href = notebook.content;
+      link.download = `${notebook.name}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
     }
     
     setViewMode('preview');
+    setIsPrinting(true);
+    document.body.classList.add('printing-mode');
     setTimeout(() => {
       window.print();
-    }, 100);
+      setIsPrinting(false);
+      document.body.classList.remove('printing-mode');
+    }, 500);
   };
 
   const addStickyNote = () => {
@@ -149,7 +163,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
   };
 
   return (
-    <div className="w-full h-full flex flex-col relative px-4 md:px-8 py-6 print:p-0">
+    <div className={`notebook-editor-container w-full h-full flex flex-col relative px-4 md:px-8 py-6 print:p-0 ${isPrinting ? 'is-printing print:bg-white print:w-full print:block print:h-auto print:overflow-visible' : ''}`}>
       
       {/* Top Header & Toolbar */}
       <div className="flex justify-between items-start md:items-center mb-6 z-20 shrink-0 gap-4 flex-col md:flex-row no-print">
