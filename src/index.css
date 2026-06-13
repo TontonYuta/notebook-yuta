@@ -52,7 +52,9 @@ body {
 }
 
 .lined-paper {
-  background-image: repeating-linear-gradient(transparent, transparent 31px, rgba(26, 35, 126, 0.1) 31px, rgba(26, 35, 126, 0.1) 32px);
+  background-image: linear-gradient(transparent 31px, rgba(26, 35, 126, 0.15) 31px, rgba(26, 35, 126, 0.15) 32px);
+  background-size: 100% 32px;
+  background-position: top left;
   background-attachment: local;
   line-height: 32px !important;
 }
@@ -152,10 +154,6 @@ body {
     padding: 0 !important;
   }
   
-  .lined-paper {
-    background-image: none !important;
-  }
-  
   img, svg, pre, blockquote, tr {
     page-break-inside: avoid;
     break-inside: avoid;
@@ -230,7 +228,7 @@ body {
   padding: 16px;
   border-radius: 8px;
   overflow-x: auto;
-  border: 1px dashed var(--color-ink);
+  box-shadow: inset 0 0 0 1px var(--color-ink);
   margin-bottom: 32px;
 }
 
