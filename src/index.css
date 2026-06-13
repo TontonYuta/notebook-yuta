@@ -98,12 +98,7 @@ body {
 
 /* Print CSS for PDF export */
 @media print {
-  @page {
-    margin: 0;
-  }
-  
   body {
-    padding: 2cm;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     background: white !important;
@@ -115,19 +110,11 @@ body {
     display: none !important;
   }
 
-  .print\:hidden, .no-print {
-    display: none !important;
-  }
-
   #root, html, body, main {
     height: auto !important;
     overflow: visible !important;
     background: white;
     display: block !important;
-  }
-  
-  .flex, .flex-col, .flex-row {
-     display: block !important;
   }
 
   * {
@@ -148,10 +135,6 @@ body {
   .flex-1 {
     flex: none !important;
   }
-
-  .lined-paper {
-    background-image: none !important;
-  }
   
   main {
     margin: 0 !important;
@@ -160,17 +143,8 @@ body {
 
   .notebook-paper {
     height: auto !important;
-    border: none !important;
     box-shadow: none !important;
     margin: 0 !important;
-  }
-
-  .notebook-paper::before {
-    display: none;
-  }
-
-  .notebook-body {
-    padding: 0 !important;
   }
   
   img, svg, pre, blockquote, tr {
@@ -181,6 +155,11 @@ body {
   h1, h2, h3 {
     page-break-after: avoid;
     break-after: avoid;
+  }
+
+  /* Ensure these are at the end so they override any previous display styles */
+  .print\:hidden, .no-print, .no-print * {
+    display: none !important;
   }
 }
 
@@ -249,6 +228,17 @@ body {
 .prose-notebook pre code {
   background: transparent;
   padding: 0;
+}
+
+.prose-notebook strong { font-weight: bold; }
+.prose-notebook em { font-style: italic; }
+.prose-notebook del { text-decoration: line-through; }
+.prose-notebook a {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--color-pastel-blue);
+  text-underline-offset: 4px;
 }
 
 .prose-notebook table {
