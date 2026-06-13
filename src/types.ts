@@ -2,6 +2,7 @@ export interface Notebook {
   id: string;
   name: string;
   content: string;
+  type?: 'text' | 'pdf';
   lastModified: number;
   stickies: StickyNote[];
   color?: 'pink' | 'green' | 'blue' | 'yellow' | 'default';

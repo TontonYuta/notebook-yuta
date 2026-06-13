@@ -22,7 +22,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const searchMatches = useMemo(() => {
-    if (!notebook || !searchQuery) return [];
+    if (!notebook || !searchQuery || notebook.type === 'pdf') return [];
     const text = notebook.content.toLowerCase();
     const query = searchQuery.toLowerCase();
     const matches: number[] = [];
@@ -32,7 +32,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
       i += query.length;
     }
     return matches;
-  }, [notebook?.content, searchQuery]);
+  }, [notebook?.content, notebook?.type, searchQuery]);
 
   useEffect(() => {
     if (searchMatches.length === 0) {
@@ -107,6 +107,18 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
   }
 
   const handlePrint = () => {
+    if (notebook.type === 'pdf') {
+      const iframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
+      if (iframe && iframe.contentWindow) {
+        try {
+          iframe.contentWindow.print();
+          return;
+        } catch (e) {
+          console.error("Could not print iframe directly", e);
+        }
+      }
+    }
+    
     setViewMode('preview');
     setTimeout(() => {
       window.print();
@@ -150,60 +162,62 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
         <div className="flex gap-3 justify-end items-center flex-wrap shrink-0">
           
           {/* Search Bar */}
-          <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-full border-2 border-[var(--color-ink)] px-2 py-1 shadow-sm h-10 w-full sm:w-auto relative group focus-within:ring-2 ring-[var(--color-pastel-blue)]">
-             <Search size={16} className="text-[var(--color-ink)] mr-2 flex-shrink-0" />
-             <input
-               type="text"
-               value={searchQuery}
-               onChange={(e) => setSearchQuery(e.target.value)}
-               onKeyDown={(e) => {
-                 if (e.key === 'Enter' && searchMatches.length > 0) {
-                   e.preventDefault();
-                   const next = (currentMatch + 1) % searchMatches.length;
-                   setCurrentMatch(next);
-                   scrollToMatch(next);
-                 }
-               }}
-               onFocus={() => {
-                 setIsSearchActive(true);
-                 if (viewMode === 'preview') setViewMode('split');
-               }}
-               placeholder="Tìm kiếm..."
-               className="bg-transparent outline-none border-none w-24 focus:w-40 sm:w-32 sm:focus:w-48 transition-all notebook-body !text-base h-full"
-             />
-             {searchQuery && (
-               <div className="flex items-center ml-2 border-l-2 border-[var(--color-ink)]/20 pl-2 gap-1 h-full">
-                 <span className="text-xs font-semibold px-1 min-w-[30px] text-center">
-                   {searchMatches.length > 0 ? `${currentMatch + 1}/${searchMatches.length}` : '0/0'}
-                 </span>
-                 <button 
-                   onClick={() => {
-                     const next = (currentMatch - 1 + searchMatches.length) % searchMatches.length;
-                     setCurrentMatch(next);
-                     scrollToMatch(next);
-                   }}
-                   className="p-1 hover:bg-[var(--color-ink)]/10 rounded cursor-pointer disabled:opacity-50"
-                   disabled={searchMatches.length === 0}
-                 >
-                   <ChevronUp size={16} strokeWidth={3} />
-                 </button>
-                 <button 
-                   onClick={() => {
+          {notebook.type !== 'pdf' && (
+            <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-full border-2 border-[var(--color-ink)] px-2 py-1 shadow-sm h-10 w-full sm:w-auto relative group focus-within:ring-2 ring-[var(--color-pastel-blue)]">
+               <Search size={16} className="text-[var(--color-ink)] mr-2 flex-shrink-0" />
+               <input
+                 type="text"
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
+                 onKeyDown={(e) => {
+                   if (e.key === 'Enter' && searchMatches.length > 0) {
+                     e.preventDefault();
                      const next = (currentMatch + 1) % searchMatches.length;
                      setCurrentMatch(next);
                      scrollToMatch(next);
-                   }}
-                   className="p-1 hover:bg-[var(--color-ink)]/10 rounded cursor-pointer disabled:opacity-50"
-                   disabled={searchMatches.length === 0}
-                 >
-                   <ChevronDown size={16} strokeWidth={3} />
-                 </button>
-                 <button onClick={clearSearch} className="p-1 hover:bg-[var(--color-red-pen)]/20 text-[var(--color-red-pen)] rounded cursor-pointer ml-1">
-                   <X size={16} strokeWidth={3} />
-                 </button>
-               </div>
-             )}
-          </div>
+                   }
+                 }}
+                 onFocus={() => {
+                   setIsSearchActive(true);
+                   if (viewMode === 'preview') setViewMode('split');
+                 }}
+                 placeholder="Tìm kiếm..."
+                 className="bg-transparent outline-none border-none w-24 focus:w-40 sm:w-32 sm:focus:w-48 transition-all notebook-body !text-base h-full"
+               />
+               {searchQuery && (
+                 <div className="flex items-center ml-2 border-l-2 border-[var(--color-ink)]/20 pl-2 gap-1 h-full">
+                   <span className="text-xs font-semibold px-1 min-w-[30px] text-center">
+                     {searchMatches.length > 0 ? `${currentMatch + 1}/${searchMatches.length}` : '0/0'}
+                   </span>
+                   <button 
+                     onClick={() => {
+                       const next = (currentMatch - 1 + searchMatches.length) % searchMatches.length;
+                       setCurrentMatch(next);
+                       scrollToMatch(next);
+                     }}
+                     className="p-1 hover:bg-[var(--color-ink)]/10 rounded cursor-pointer disabled:opacity-50"
+                     disabled={searchMatches.length === 0}
+                   >
+                     <ChevronUp size={16} strokeWidth={3} />
+                   </button>
+                   <button 
+                     onClick={() => {
+                       const next = (currentMatch + 1) % searchMatches.length;
+                       setCurrentMatch(next);
+                       scrollToMatch(next);
+                     }}
+                     className="p-1 hover:bg-[var(--color-ink)]/10 rounded cursor-pointer disabled:opacity-50"
+                     disabled={searchMatches.length === 0}
+                   >
+                     <ChevronDown size={16} strokeWidth={3} />
+                   </button>
+                   <button onClick={clearSearch} className="p-1 hover:bg-[var(--color-red-pen)]/20 text-[var(--color-red-pen)] rounded cursor-pointer ml-1">
+                     <X size={16} strokeWidth={3} />
+                   </button>
+                 </div>
+               )}
+            </div>
+          )}
 
           <button 
             onClick={addStickyNote}
@@ -222,29 +236,31 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
           </button>
 
           {/* View Mode Toggle */}
-          <div className="flex bg-white/60 backdrop-blur-sm rounded-full border-2 border-[var(--color-ink)] overflow-hidden shadow-sm font-bold text-[var(--color-ink)] h-10">
-            <button 
-              onClick={() => setViewMode('edit')}
-              className={`px-3 py-1 flex items-center gap-1 transition-colors hover:bg-black/5 cursor-pointer h-full ${viewMode === 'edit' ? 'bg-[var(--color-highlighter)]' : ''}`}
-              title="Chế độ Viết"
-            >
-              <Edit3 size={16} strokeWidth={2.5} className="md:mr-1" /> <span className="hidden md:inline">Viết</span>
-            </button>
-            <button 
-              onClick={() => setViewMode('split')}
-              className={`px-3 py-1 flex items-center gap-1 transition-colors hover:bg-black/5 border-l-2 border-r-2 border-[var(--color-ink)] cursor-pointer h-full ${viewMode === 'split' ? 'bg-[var(--color-highlighter)]' : ''}`}
-              title="Chia đôi màn hình"
-            >
-              <Columns size={16} strokeWidth={2.5} className="md:mr-1" /> <span className="hidden md:inline">Chia đôi</span>
-            </button>
-            <button 
-              onClick={() => setViewMode('preview')}
-              className={`px-3 py-1 flex items-center gap-1 transition-colors hover:bg-black/5 cursor-pointer h-full ${viewMode === 'preview' ? 'bg-[var(--color-highlighter)]' : ''}`}
-              title="Chế độ Xem"
-            >
-              <Eye size={16} strokeWidth={2.5} className="md:mr-1" /> <span className="hidden md:inline">Xem</span>
-            </button>
-          </div>
+          {notebook.type !== 'pdf' && (
+            <div className="flex bg-white/60 backdrop-blur-sm rounded-full border-2 border-[var(--color-ink)] overflow-hidden shadow-sm font-bold text-[var(--color-ink)] h-10">
+              <button 
+                onClick={() => setViewMode('edit')}
+                className={`px-3 py-1 flex items-center gap-1 transition-colors hover:bg-black/5 cursor-pointer h-full ${viewMode === 'edit' ? 'bg-[var(--color-highlighter)]' : ''}`}
+                title="Chế độ Viết"
+              >
+                <Edit3 size={16} strokeWidth={2.5} className="md:mr-1" /> <span className="hidden md:inline">Viết</span>
+              </button>
+              <button 
+                onClick={() => setViewMode('split')}
+                className={`px-3 py-1 flex items-center gap-1 transition-colors hover:bg-black/5 border-l-2 border-r-2 border-[var(--color-ink)] cursor-pointer h-full ${viewMode === 'split' ? 'bg-[var(--color-highlighter)]' : ''}`}
+                title="Chia đôi màn hình"
+              >
+                <Columns size={16} strokeWidth={2.5} className="md:mr-1" /> <span className="hidden md:inline">Chia đôi</span>
+              </button>
+              <button 
+                onClick={() => setViewMode('preview')}
+                className={`px-3 py-1 flex items-center gap-1 transition-colors hover:bg-black/5 cursor-pointer h-full ${viewMode === 'preview' ? 'bg-[var(--color-highlighter)]' : ''}`}
+                title="Chế độ Xem"
+              >
+                <Eye size={16} strokeWidth={2.5} className="md:mr-1" /> <span className="hidden md:inline">Xem</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -252,7 +268,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
       <div className="w-full flex-grow flex gap-6 relative overflow-hidden print:overflow-visible">
         
         {/* Editor Half */}
-        {(viewMode === 'edit' || viewMode === 'split') && (
+        {notebook.type !== 'pdf' && (viewMode === 'edit' || viewMode === 'split') && (
           <div className={`flex-1 min-w-0 h-full notebook-paper flex flex-col ${viewMode === 'split' ? 'hidden md:flex' : 'flex'} print:hidden`}>
             <div className="flex-grow overflow-y-auto w-full scroll-smooth" id="editor-scroller">
               <textarea
@@ -272,18 +288,26 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
           </div>
         )}
 
-        {/* Preview Half */}
-        {(viewMode === 'preview' || viewMode === 'split') && (
-          <div className={`flex-1 min-w-0 h-full notebook-paper flex flex-col ${viewMode === 'split' ? 'flex' : 'flex'}`}>
-            <div className="flex-grow overflow-y-auto w-full scroll-smooth overflow-x-auto">
-              <div className="notebook-body bg-transparent lined-paper prose-notebook pl-[60px] pr-8 pt-8 pb-32 min-h-full h-fit flex flex-col min-w-0">
-                <ReactMarkdown 
-                  remarkPlugins={[remarkMath, remarkGfm]} 
-                  rehypePlugins={[rehypeKatex]}
-                >
-                  {notebook.content || '*Chưa có nội dung...*'}
-                </ReactMarkdown>
-              </div>
+        {/* Preview Half (Markdown or PDF) */}
+        {((notebook.type !== 'pdf' && (viewMode === 'preview' || viewMode === 'split')) || notebook.type === 'pdf') && (
+          <div className={`flex-1 min-w-0 h-full notebook-paper flex flex-col ${viewMode === 'split' && notebook.type !== 'pdf' ? 'flex' : 'flex'} print:h-auto print:block`}>
+            <div className="flex-grow overflow-y-auto w-full scroll-smooth overflow-x-auto p-4 print:overflow-visible print:h-auto">
+              {notebook.type === 'pdf' ? (
+                <iframe
+                  src={notebook.content}
+                  className="w-full h-[80vh] border-none rounded print:hidden"
+                  title="PDF Viewer"
+                />
+              ) : (
+                <div className="notebook-body bg-transparent lined-paper prose-notebook pl-[60px] pr-8 pt-8 pb-32 min-h-full h-fit flex flex-col min-w-0 print:h-auto print:min-h-0 print:pb-0">
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkMath, remarkGfm]} 
+                    rehypePlugins={[rehypeKatex]}
+                  >
+                    {notebook.content || '*Chưa có nội dung...*'}
+                  </ReactMarkdown>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -315,7 +339,7 @@ function DraggableSticky({ sticky, onUpdate, onDelete, onMove }: { sticky: Stick
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    e.target.setPointerCapture(e.pointerId);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setIsDragging(true);
     setDragOffset({
       x: e.clientX - sticky.position.x,
@@ -330,7 +354,7 @@ function DraggableSticky({ sticky, onUpdate, onDelete, onMove }: { sticky: Stick
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    e.target.releasePointerCapture(e.pointerId);
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     setIsDragging(false);
   };
 

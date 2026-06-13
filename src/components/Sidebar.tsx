@@ -1,16 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { Notebook } from '../types';
-import { Plus, X, Trash2, Edit2, Check, Book, Search, GripVertical, Upload } from 'lucide-react';
+import { Plus, X, Trash2, Edit2, Check, Book, Search, GripVertical, Upload, FileText } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import * as pdfjsLib from 'pdfjs-dist';
-// Use url import for vite
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface Props {
   notebooks: Notebook[];
-  activeId: string | null;
+  activeIds: string[];
   isOpen: boolean;
   onClose: () => void;
   onSelect: (id: string) => void;
@@ -18,8 +13,8 @@ interface Props {
   onDelete: (id: string) => void;
   onRename: (id: string, newName: string) => void;
   onChangeColor?: (id: string, color: Notebook['color']) => void;
-  onReorder?: (startIndex: number, endIndex: number) => void;
-  onImport?: (name: string, content: string) => void;
+  onReorder?: (movedId: string, destIndex: number, type: 'text' | 'pdf') => void;
+  onImport?: (name: string, content: string, type: 'text' | 'pdf') => void;
 }
 
 const COLOR_MAP = {
@@ -34,7 +29,7 @@ const COLORS: Notebook['color'][] = ['default', 'pink', 'green', 'blue', 'yellow
 
 export function Sidebar({
   notebooks,
-  activeId,
+  activeIds,
   isOpen,
   onClose,
   onSelect,
@@ -77,10 +72,17 @@ export function Sidebar({
     return notebooks.filter(n => n.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [notebooks, searchQuery, isSearching]);
 
+  const textNotebooks = useMemo(() => filteredNotebooks.filter(n => n.type !== 'pdf'), [filteredNotebooks]);
+  const pdfNotebooks = useMemo(() => filteredNotebooks.filter(n => n.type === 'pdf'), [filteredNotebooks]);
+
   const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    if (source.droppableId !== destination.droppableId) return;
+
     if (onReorder && !isSearching) {
-      onReorder(result.source.index, result.destination.index);
+      const type = source.droppableId === 'notebooks-list' ? 'text' : 'pdf';
+      onReorder(draggableId, destination.index, type);
     }
   };
 
@@ -89,21 +91,27 @@ export function Sidebar({
     if (!file || !onImport) return;
     
     try {
+      const isPdf = file.name.toLowerCase().endsWith('.pdf');
       let content = '';
-      if (file.name.toLowerCase().endsWith('.pdf')) {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          content += textContent.items.map((item: any) => item.str).join(' ') + '\n\n';
-        }
+      let type: 'text' | 'pdf' = 'text';
+
+      if (isPdf) {
+        // Read file as Data URL
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        content = base64;
+        type = 'pdf';
       } else {
         content = await file.text();
+        type = 'text';
       }
       
       const rawName = file.name.replace(/\.[^/.]+$/, '');
-      onImport(rawName, content);
+      onImport(rawName, content, type);
     } catch (err) {
       console.error('Failed to import file:', err);
       alert('Không thể tải file, vui lòng thử lại.');
@@ -112,6 +120,106 @@ export function Sidebar({
     // reset target value to allow uploading same file again
     e.target.value = '';
   };
+
+  const renderDraggableItem = (notebook: Notebook, index: number) => (
+    <Draggable key={notebook.id} draggableId={notebook.id} index={index} isDragDisabled={isSearching}>
+      {(provided, snapshot) => (
+        <div 
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          onClick={() => {
+            if (editingId !== notebook.id) {
+              onSelect(notebook.id);
+            }
+          }}
+          className={`group relative p-3 transition-colors cursor-pointer sketchy-border ${
+            activeIds.includes(notebook.id) 
+              ? 'bg-[var(--color-ink)]/5' 
+              : 'bg-white hover:bg-[var(--color-ink)]/5'
+          } ${snapshot.isDragging ? 'shadow-xl scale-[1.02] z-50 ring-2 ring-[var(--color-pastel-blue)]' : ''}`}
+          style={{...provided.draggableProps.style}}
+        >
+          {/* Drag handle must always be rendered for dnd to work */}
+          <div 
+            {...provided.dragHandleProps} 
+            style={{ display: (isSearching || editingId === notebook.id) ? 'none' : 'block' }}
+            className="absolute left-1 top-1/2 -translate-y-1/2 text-[var(--color-ink)]/30 hover:text-[var(--color-ink)]/60 cursor-grab active:cursor-grabbing z-10"
+            onClick={e => e.stopPropagation()}
+          >
+            <GripVertical size={16} />
+          </div>
+
+          {editingId === notebook.id ? (
+            <div className="flex flex-col gap-2 relative z-10">
+              <form onSubmit={saveEdit} onClick={e => e.stopPropagation()} className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onBlur={() => {
+                      // delay blur to allow clicking color circles
+                      setTimeout(() => saveEdit(), 150);
+                    }}
+                    className="flex-grow bg-transparent border-b border-[var(--color-ink)] outline-none notebook-body !line-height-normal !px-1"
+                  />
+                  <button type="submit" className="text-[var(--color-green-pen)] cursor-pointer p-1">
+                    <Check size={18} strokeWidth={3} />
+                  </button>
+              </form>
+              {notebook.type !== 'pdf' && (
+                <div className="flex gap-2 px-1 mb-1" onClick={e => e.stopPropagation()}>
+                  {COLORS.map(c => (
+                    <button
+                      key={c}
+                      title={`Màu ${c}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChangeColor?.(notebook.id, c);
+                      }}
+                      className={`w-5 h-5 rounded-full border-2 ${COLOR_MAP[c || 'default']} ${(notebook.color || 'default') === c ? 'ring-2 ring-offset-1 ring-[var(--color-ink)]' : 'opacity-80 hover:opacity-100 hover:scale-110'}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between pointer-events-auto pl-4 relative z-10">
+                <div className="flex items-center gap-2 flex-grow min-w-0 pr-2">
+                  {notebook.type === 'pdf' ? (
+                    <FileText size={18} className="text-[var(--color-red-pen)] shrink-0" strokeWidth={2.5} />
+                  ) : (
+                    <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${COLOR_MAP[notebook.color || 'default']}`} />
+                  )}
+                  <span className="notebook-body !line-height-[1.4] font-semibold line-clamp-1 truncate block">
+                    {notebook.name}
+                  </span>
+                </div>
+                <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 rounded pl-1">
+                  <button 
+                    onClick={(e) => startEdit(e, notebook)}
+                    className="p-1 text-[var(--color-ink)] hover:text-[var(--color-green-pen)] transition-colors cursor-pointer"
+                    title="Tùy chỉnh vở"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={(e) => handleDelete(e, notebook.id)}
+                    className="p-1 text-[var(--color-ink)] hover:text-[var(--color-red-pen)] transition-colors cursor-pointer"
+                    title="Xóa vở"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+            </div>
+          )}
+          <div className="text-xs opacity-50 mt-1 ml-9">
+            Chỉnh sửa: {new Date(notebook.lastModified).toLocaleDateString('vi-VN')}
+          </div>
+        </div>
+      )}
+    </Draggable>
+  );
 
   return (
     <>
@@ -159,116 +267,49 @@ export function Sidebar({
               </div>
 
               <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="notebooks-list" isDropDisabled={isSearching}>
-                  {(provided) => (
-                    <div 
-                      className="flex-grow overflow-y-auto p-4 pt-2 space-y-3"
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                    >
-                      {filteredNotebooks.map((notebook, index) => (
-                        <Draggable key={notebook.id} draggableId={notebook.id} index={index} isDragDisabled={isSearching}>
-                          {(provided, snapshot) => (
-                            <div 
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              onClick={() => {
-                                if (editingId !== notebook.id) {
-                                  onSelect(notebook.id);
-                                }
-                              }}
-                              className={`group relative p-3 transition-colors cursor-pointer sketchy-border ${
-                                activeId === notebook.id 
-                                  ? 'bg-[var(--color-ink)]/5' 
-                                  : 'bg-white hover:bg-[var(--color-ink)]/5'
-                              } ${snapshot.isDragging ? 'shadow-xl scale-[1.02] z-50 ring-2 ring-[var(--color-pastel-blue)]' : ''}`}
-                              style={{...provided.draggableProps.style}}
-                            >
-                              {/* Drag handle must always be rendered for dnd to work */}
-                              <div 
-                               {...provided.dragHandleProps} 
-                               style={{ display: (isSearching || editingId === notebook.id) ? 'none' : 'block' }}
-                               className="absolute left-1 top-1/2 -translate-y-1/2 text-[var(--color-ink)]/30 hover:text-[var(--color-ink)]/60 cursor-grab active:cursor-grabbing z-10"
-                               onClick={e => e.stopPropagation()}
-                              >
-                                <GripVertical size={16} />
-                              </div>
-
-                              {editingId === notebook.id ? (
-                                <div className="flex flex-col gap-2 relative z-10">
-                                  <form onSubmit={saveEdit} onClick={e => e.stopPropagation()} className="flex items-center gap-2">
-                                     <input
-                                       autoFocus
-                                       type="text"
-                                       value={editName}
-                                       onChange={(e) => setEditName(e.target.value)}
-                                       onBlur={() => {
-                                         // delay blur to allow clicking color circles
-                                         setTimeout(() => saveEdit(), 150);
-                                       }}
-                                       className="flex-grow bg-transparent border-b border-[var(--color-ink)] outline-none notebook-body !line-height-normal !px-1"
-                                     />
-                                     <button type="submit" className="text-[var(--color-green-pen)] cursor-pointer p-1">
-                                       <Check size={18} strokeWidth={3} />
-                                     </button>
-                                  </form>
-                                  <div className="flex gap-2 px-1 mb-1" onClick={e => e.stopPropagation()}>
-                                    {COLORS.map(c => (
-                                      <button
-                                        key={c}
-                                        title={`Màu ${c}`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          onChangeColor?.(notebook.id, c);
-                                        }}
-                                        className={`w-5 h-5 rounded-full border-2 ${COLOR_MAP[c || 'default']} ${(notebook.color || 'default') === c ? 'ring-2 ring-offset-1 ring-[var(--color-ink)]' : 'opacity-80 hover:opacity-100 hover:scale-110'}`}
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-between pointer-events-auto pl-4 relative z-10">
-                                   <div className="flex items-center gap-2 flex-grow min-w-0 pr-2">
-                                     <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${COLOR_MAP[notebook.color || 'default']}`} />
-                                     <span className="notebook-body !line-height-[1.4] font-semibold line-clamp-1 truncate block">
-                                       {notebook.name}
-                                     </span>
-                                   </div>
-                                   <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 rounded pl-1">
-                                      <button 
-                                        onClick={(e) => startEdit(e, notebook)}
-                                        className="p-1 text-[var(--color-ink)] hover:text-[var(--color-green-pen)] transition-colors cursor-pointer"
-                                        title="Tùy chỉnh vở"
-                                      >
-                                        <Edit2 size={16} />
-                                      </button>
-                                      <button 
-                                        onClick={(e) => handleDelete(e, notebook.id)}
-                                        className="p-1 text-[var(--color-ink)] hover:text-[var(--color-red-pen)] transition-colors cursor-pointer"
-                                        title="Xóa vở"
-                                      >
-                                        <Trash2 size={16} />
-                                      </button>
-                                   </div>
-                                </div>
-                              )}
-                              <div className="text-xs opacity-50 mt-1 ml-9">
-                                Chỉnh sửa: {new Date(notebook.lastModified).toLocaleDateString('vi-VN')}
-                              </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                      
-                      {filteredNotebooks.length === 0 && (
-                        <div className="text-center opacity-50 pt-4 notebook-body">
-                          Không tìm thấy vở nào.
+                <div className="flex-grow overflow-y-auto p-4 pt-2">
+                  <div className="mb-6">
+                    <h3 className="text-sm font-bold mb-3 uppercase tracking-wider opacity-60">
+                      Kho Vở (Ghi chép)
+                    </h3>
+                    <Droppable droppableId="notebooks-list" isDropDisabled={isSearching}>
+                      {(provided) => (
+                        <div 
+                          className="space-y-3 min-h-[10px]"
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                        >
+                          {textNotebooks.map((notebook, index) => renderDraggableItem(notebook, index))}
+                          {provided.placeholder}
                         </div>
                       )}
+                    </Droppable>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-bold mb-3 mt-8 uppercase tracking-wider opacity-60">
+                      Kho Sách (PDF)
+                    </h3>
+                    <Droppable droppableId="books-list" isDropDisabled={isSearching}>
+                      {(provided) => (
+                        <div 
+                          className="space-y-3 min-h-[10px]"
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                        >
+                          {pdfNotebooks.map((notebook, index) => renderDraggableItem(notebook, index))}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  </div>
+
+                  {filteredNotebooks.length === 0 && (
+                    <div className="text-center opacity-50 pt-4 notebook-body">
+                      Không tìm thấy vở nào.
                     </div>
                   )}
-                </Droppable>
+                </div>
               </DragDropContext>
 
               <div className="p-4 border-t-2 border-dashed border-[var(--color-ink)]/20 shrink-0 flex flex-col gap-3">

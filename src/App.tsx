@@ -6,7 +6,8 @@ import { NotebookEditor } from './components/NotebookEditor';
 
 export default function App() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeTextId, setActiveTextId] = useState<string | null>(null);
+  const [activePdfId, setActivePdfId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -17,7 +18,10 @@ export default function App() {
         const parsed: Notebook[] = JSON.parse(saved);
         setNotebooks(parsed.map(n => ({ ...n, stickies: n.stickies || [] })));
         if (parsed.length > 0) {
-          setActiveId(parsed[0].id);
+          const textNb = parsed.find(n => n.type !== 'pdf');
+          if (textNb) setActiveTextId(textNb.id);
+          const pdfNb = parsed.find(n => n.type === 'pdf');
+          if (pdfNb) setActivePdfId(pdfNb.id);
         }
       } catch (e) {
         console.error('Failed to parse notebooks');
@@ -75,7 +79,7 @@ Danh sách:
         stickies: []
       };
       setNotebooks([hdsdNotebook, defaultNotebook]);
-      setActiveId(hdsdNotebook.id);
+      setActiveTextId(hdsdNotebook.id);
     }
     setIsLoaded(true);
   }, []);
@@ -86,21 +90,20 @@ Danh sách:
     }
   }, [notebooks, isLoaded]);
 
-  const activeNotebook = notebooks.find(n => n.id === activeId) || null;
+  const activeTextNb = notebooks.find(n => n.id === activeTextId) || null;
+  const activePdfNb = notebooks.find(n => n.id === activePdfId) || null;
 
-  const handleUpdateContent = (newContent: string) => {
-    if (!activeId) return;
+  const handleUpdateContent = (id: string, newContent: string) => {
     setNotebooks(prev => prev.map(n => 
-      n.id === activeId 
+      n.id === id 
         ? { ...n, content: newContent, lastModified: Date.now() } 
         : n
     ));
   };
 
-  const handleUpdateStickies = (stickies: Notebook['stickies']) => {
-    if (!activeId) return;
+  const handleUpdateStickies = (id: string, stickies: Notebook['stickies']) => {
     setNotebooks(prev => prev.map(n => 
-      n.id === activeId 
+      n.id === id 
         ? { ...n, stickies, lastModified: Date.now() } 
         : n
     ));
@@ -115,7 +118,7 @@ Danh sách:
       stickies: []
     };
     setNotebooks([newNotebook, ...notebooks]);
-    setActiveId(newNotebook.id);
+    setActiveTextId(newNotebook.id);
     if (window.innerWidth < 768) {
        setIsSidebarOpen(false);
     }
@@ -123,9 +126,8 @@ Danh sách:
 
   const handleDeleteNotebook = (id: string) => {
     setNotebooks(prev => prev.filter(n => n.id !== id));
-    if (activeId === id) {
-      setActiveId(null);
-    }
+    if (activeTextId === id) setActiveTextId(null);
+    if (activePdfId === id) setActivePdfId(null);
   };
 
   const handleRenameNotebook = (id: string, newName: string) => {
@@ -144,44 +146,81 @@ Danh sách:
     ));
   };
 
-  const handleReorderNotebook = (startIndex: number, endIndex: number) => {
+  const handleReorderNotebook = (movedId: string, destIndex: number, type: 'text' | 'pdf') => {
     setNotebooks((prev) => {
-      const result = Array.from(prev);
-      const [removed] = result.splice(startIndex, 1);
-      result.splice(endIndex, 0, removed);
-      return result;
+      const itemIndex = prev.findIndex(n => n.id === movedId);
+      if (itemIndex === -1) return prev;
+      const item = prev[itemIndex];
+      
+      let newNotebooks = [...prev];
+      newNotebooks.splice(itemIndex, 1);
+      
+      const sameTypeItems = newNotebooks.filter(n => type === 'pdf' ? n.type === 'pdf' : n.type !== 'pdf');
+      
+      if (destIndex < sameTypeItems.length) {
+         const targetId = sameTypeItems[destIndex].id;
+         const globalTargetIndex = newNotebooks.findIndex(n => n.id === targetId);
+         newNotebooks.splice(globalTargetIndex, 0, item);
+      } else {
+         if (sameTypeItems.length > 0) {
+            const lastId = sameTypeItems[sameTypeItems.length - 1].id;
+            const globalLastIndex = newNotebooks.findIndex(n => n.id === lastId);
+            newNotebooks.splice(globalLastIndex + 1, 0, item);
+         } else {
+            // No items of this type, find where to put it
+            if (type === 'text') {
+               newNotebooks.unshift(item); // Texts at the top
+            } else {
+               newNotebooks.push(item); // Pdfs at the bottom
+            }
+         }
+      }
+      return newNotebooks;
     });
   };
 
-  const handleImportNotebook = (name: string, content: string) => {
+  const handleImportNotebook = (name: string, content: string, type: 'text' | 'pdf' = 'text') => {
     const newNotebook: Notebook = {
       id: crypto.randomUUID(),
       name,
       content,
+      type,
       lastModified: Date.now(),
       stickies: []
     };
     setNotebooks([newNotebook, ...notebooks]);
-    setActiveId(newNotebook.id);
+    if (type === 'pdf') {
+       setActivePdfId(newNotebook.id);
+    } else {
+       setActiveTextId(newNotebook.id);
+    }
     if (window.innerWidth < 768) {
        setIsSidebarOpen(false);
     }
   };
 
   const handleSelectNotebook = (id: string) => {
-     setActiveId(id);
+     const nb = notebooks.find(n => n.id === id);
+     if (!nb) return;
+     
+     if (nb.type === 'pdf') {
+       setActivePdfId(prev => prev === id ? null : id); // toggle PDF
+     } else {
+       setActiveTextId(id);
+     }
+     
      if (window.innerWidth < 768) {
        setIsSidebarOpen(false);
      }
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[var(--color-cream)] flex-row">
+    <div className="flex h-screen w-full overflow-hidden bg-[var(--color-cream)] flex-row print:h-auto print:overflow-visible print:block">
       
       {/* Sidebar Area */}
       <Sidebar 
         notebooks={notebooks}
-        activeId={activeId}
+        activeIds={[activeTextId, activePdfId].filter(Boolean) as string[]}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onSelect={handleSelectNotebook}
@@ -194,7 +233,7 @@ Danh sách:
       />
       
       {/* Main Content Area */}
-      <main className="flex-grow h-full relative transition-all duration-300 overflow-hidden print:overflow-visible overflow-x-auto">
+      <main className="flex-grow flex h-full relative transition-all duration-300 overflow-hidden print:overflow-visible overflow-x-auto min-w-0">
         
         {/* Toggle Sidebar Button */}
         <button 
@@ -205,11 +244,31 @@ Danh sách:
            <Menu size={28} strokeWidth={2.5} />
          </button>
 
-        <NotebookEditor 
-          notebook={activeNotebook} 
-          onChange={handleUpdateContent}
-          onUpdateStickies={handleUpdateStickies}
-        />
+        {activeTextNb && (
+          <div className={`flex-1 min-w-0 h-full ${activePdfNb ? 'hidden md:block' : 'block'}`}>
+            <NotebookEditor 
+              notebook={activeTextNb} 
+              onChange={(c) => handleUpdateContent(activeTextNb.id, c)}
+              onUpdateStickies={(s) => handleUpdateStickies(activeTextNb.id, s)}
+            />
+          </div>
+        )}
+
+        {activePdfNb && (
+          <div className={`flex-1 min-w-0 h-full ${activeTextNb ? 'border-l-2 border-[var(--color-ink)]/20 shadow-[-4px_0_15px_rgba(0,0,0,0.03)]' : ''}`}>
+            <NotebookEditor 
+              notebook={activePdfNb} 
+              onChange={(c) => handleUpdateContent(activePdfNb.id, c)}
+              onUpdateStickies={(s) => handleUpdateStickies(activePdfNb.id, s)}
+            />
+          </div>
+        )}
+
+        {!activeTextNb && !activePdfNb && (
+          <div className="w-full h-full flex flex-col items-center justify-center opacity-40">
+            <h2 className="notebook-title !text-3xl">Hãy mở một quyển vở ra để bắt đầu viết nhé!</h2>
+          </div>
+        )}
       </main>
       
     </div>
