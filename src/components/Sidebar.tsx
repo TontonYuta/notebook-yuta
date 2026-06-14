@@ -234,13 +234,12 @@ export function Sidebar({
 
       {/* Sidebar Panel */}
       <div 
-        className={`fixed md:relative top-0 left-0 h-full w-80 bg-[var(--color-cream)] border-r-2 border-[var(--color-ink)]/20 z-30 transform transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] print:hidden shadow-[4px_0_15px_rgba(0,0,0,0.08)] flex flex-col ${
-          isOpen ? 'translate-x-0' : '-translate-x-full md:-translate-x-full md:hidden'
-        } ${!isOpen ? 'hidden md:flex md:w-0 md:border-none' : ''}`}
+        className={`fixed md:relative top-0 left-0 h-full w-80 shrink-0 bg-[var(--color-cream)] border-r-2 border-[var(--color-ink)]/20 z-30 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] print:hidden shadow-[4px_0_15px_rgba(0,0,0,0.08)] flex flex-col ${
+          isOpen ? 'translate-x-0 ml-0' : '-translate-x-full md:translate-x-0 md:-ml-80'
+        }`}
       >
-        {isOpen && (
-          <div className="flex flex-col h-full bg-[var(--color-cream)] w-full absolute left-0">
-              <div className="p-4 border-b-2 border-dashed border-[var(--color-ink)]/20 flex justify-between items-center bg-[var(--color-pastel-pink)]/20">
+        <div className="flex flex-col h-full bg-[var(--color-cream)] w-full absolute left-0">
+          <div className="p-4 border-b-2 border-dashed border-[var(--color-ink)]/20 flex justify-between items-center bg-[var(--color-pastel-pink)]/20">
                 <h2 className="notebook-title !text-2xl m-0 flex items-center gap-2">
                    <Book className="text-[var(--color-ink)]" />
                    Giá sách
@@ -328,7 +327,6 @@ export function Sidebar({
                  </label>
               </div>
           </div>
-        )}
       </div>
     </>
   );

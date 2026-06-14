@@ -9,6 +9,7 @@ import rehypeHighlight from 'rehype-highlight';
 import remarkBreaks from 'remark-breaks';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import getCaretCoordinates from 'textarea-caret';
+import TextareaAutosize from 'react-textarea-autosize';
 import { Notebook, StickyNote } from '../types';
 import { Columns, Eye, Edit3, Printer, StickyNote as StickyIcon, X, Plus, Search, ChevronUp, ChevronDown, Pin, HelpCircle } from 'lucide-react';
 
@@ -134,15 +135,23 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
 
     try {
       const caret = getCaretCoordinates(textareaRef.current, textareaRef.current.selectionEnd);
-      const centerY = scroller.clientHeight / 2;
-      // top offset is the padding-top of the textarea essentially, getCaretCoordinates usually handles this if styles match.
-      // caret.top is the distance from the top of the textarea.
-      const targetScroll = caret.top - centerY + (caret.height || 20) / 2;
       
-      scroller.scrollTo({
-        top: Math.max(0, targetScroll),
-        behavior: smooth ? 'smooth' : 'auto'
-      });
+      const scrollerTop = scroller.scrollTop;
+      const scrollerBottom = scrollerTop + scroller.clientHeight;
+      
+      const caretTop = caret.top;
+      const caretBottom = caret.top + (caret.height || 20);
+
+      // Only scroll if the caret is less than 40px from the top or bottom of the visible area
+      if (caretTop < scrollerTop + 40 || caretBottom > scrollerBottom - 40) {
+        const centerY = scroller.clientHeight / 2;
+        const targetScroll = caret.top - centerY + (caret.height || 20) / 2;
+        
+        scroller.scrollTo({
+          top: Math.max(0, targetScroll),
+          behavior: smooth ? 'smooth' : 'auto'
+        });
+      }
     } catch (e) {
       console.error('Failed to center caret', e);
     }
@@ -353,30 +362,24 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
             data-color={notebook.color || 'default'}
           >
             <div className="flex-grow overflow-y-auto w-full relative" id="editor-scroller">
-              <div className="grid w-full h-fit relative">
-                <textarea
-                  ref={textareaRef}
-                  value={notebook.content}
-                  onChange={(e) => {
-                    onChange(e.target.value);
-                    // allow react to render, then we scroll
-                    requestAnimationFrame(() => handleCaretCenter(false));
-                  }}
-                  onSelect={() => {
-                    requestAnimationFrame(() => handleCaretCenter(false));
-                  }}
-                  onClick={() => {
-                    setIsSearchActive(false);
-                    requestAnimationFrame(() => handleCaretCenter(false));
-                  }}
-                  placeholder="Gõ nội dung Markdown & LaTeX tại đây..."
-                  className="w-full col-start-1 row-start-1 resize-none outline-none notebook-body bg-transparent lined-paper pl-[60px] pr-8 pt-8 pb-[50vh] overflow-hidden block relative z-0"
-                  spellCheck={false}
-                />
-                <div className="w-full col-start-1 row-start-1 notebook-body bg-transparent lined-paper pl-[60px] pr-8 pt-8 pb-[50vh] whitespace-pre-wrap break-words invisible pointer-events-none overflow-hidden" aria-hidden="true">
-                  {notebook.content + ' \n'}
-                </div>
-              </div>
+              <TextareaAutosize
+                ref={textareaRef}
+                value={notebook.content}
+                onChange={(e) => {
+                  onChange(e.target.value);
+                  requestAnimationFrame(() => handleCaretCenter(false));
+                }}
+                onSelect={() => {
+                  requestAnimationFrame(() => handleCaretCenter(false));
+                }}
+                onClick={() => {
+                  setIsSearchActive(false);
+                  requestAnimationFrame(() => handleCaretCenter(false));
+                }}
+                placeholder="Gõ nội dung Markdown & LaTeX tại đây..."
+                className="w-full min-h-full resize-none outline-none notebook-body bg-transparent lined-paper pl-[60px] pr-8 pt-8 pb-[50vh] overflow-hidden block relative z-0"
+                spellCheck={false}
+              />
               {/* Sticky Notes for Editor */}
               {notebook.stickies.map(sticky => (
                 <DraggableSticky 
