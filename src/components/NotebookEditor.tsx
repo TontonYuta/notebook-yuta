@@ -175,7 +175,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
           return;
         }
       } catch (e) {
-        console.error("Could not print iframe directly, opening the PDF in a new tab instead", e);
+        console.log("Could not print iframe directly, opening the PDF in a new tab instead");
       }
       
       // Fallback: open the PDF in a new tab so the user can use the browser's native PDF print.
