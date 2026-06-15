@@ -175,16 +175,11 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
           return;
         }
       } catch (e) {
-        console.error("Could not print iframe directly, falling back to download", e);
+        console.error("Could not print iframe directly, opening the PDF in a new tab instead", e);
       }
       
-      // Fallback: download the PDF if direct print fails or is blocked
-      const link = document.createElement('a');
-      link.href = notebook.content;
-      link.download = `${notebook.name}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Fallback: open the PDF in a new tab so the user can use the browser's native PDF print.
+      window.open(notebook.content, '_blank', 'noopener,noreferrer');
       return;
     }
     
@@ -419,7 +414,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
                   title="PDF Viewer"
                 />
               ) : (
-                <div className={`notebook-body bg-transparent ${showLines ? 'lined-paper-preview' : ''} prose-notebook pl-[60px] pr-8 pt-8 pb-[50vh] min-h-full h-fit flex flex-col min-w-0 relative z-0 print:h-auto print:min-h-0 print:pb-0`}>
+                <div className={`notebook-body bg-transparent ${showLines ? 'lined-paper-preview' : ''} prose-notebook pl-[60px] pr-8 pt-8 pb-[50vh] min-h-full h-fit flex flex-col min-w-0 relative z-0 print:h-auto print:min-h-0 print:p-0`}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkMath, remarkGfm, remarkBreaks]} 
                     rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema], rehypeKatex, rehypeSlug, rehypeHighlight]}

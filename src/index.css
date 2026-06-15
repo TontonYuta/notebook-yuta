@@ -128,6 +128,7 @@ body {
 /* Print CSS for PDF export */
 @media print {
   @page {
+    size: A4 portrait;
     margin: 20mm;
   }
 
@@ -159,6 +160,31 @@ body {
     overflow: visible !important;
   }
   
+  /* Ensure optimal line length and text size for printing */
+  .notebook-editor-container {
+    padding: 0 !important;
+    width: 100% !important;
+    margin: 0 auto;
+  }
+  
+  .notebook-paper {
+    height: auto !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .prose-notebook {
+    font-size: 13pt !important;
+    line-height: 1.8 !important;
+    max-width: 100% !important;
+  }
+  
+  .prose-notebook h1, .prose-notebook h2, .prose-notebook h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
   /* Prevent elements from blowing out the page width and causing shrink-to-fit */
   img {
     max-width: 100% !important;
@@ -190,13 +216,6 @@ body {
   }
   
   main {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  .notebook-paper {
-    height: auto !important;
-    box-shadow: none !important;
     margin: 0 !important;
     padding: 0 !important;
   }
