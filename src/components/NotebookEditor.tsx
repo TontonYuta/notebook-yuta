@@ -11,7 +11,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import getCaretCoordinates from 'textarea-caret';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Notebook, StickyNote } from '../types';
-import { Columns, Eye, Edit3, Printer, StickyNote as StickyIcon, X, Plus, Search, ChevronUp, ChevronDown, Pin, HelpCircle } from 'lucide-react';
+import { Columns, Eye, Edit3, Printer, StickyNote as StickyIcon, X, Plus, Search, ChevronUp, ChevronDown, Pin, HelpCircle, AlignJustify } from 'lucide-react';
 
 interface Props {
   notebook: Notebook | null;
@@ -49,6 +49,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const [showLines, setShowLines] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const searchMatches = useMemo(() => {
@@ -307,6 +308,16 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
             </button>
           )}
 
+          {notebook.type !== 'pdf' && (
+            <button 
+              onClick={() => setShowLines(!showLines)}
+              className={`p-2 backdrop-blur-sm rounded-full border-2 border-[var(--color-ink)] transition-colors cursor-pointer text-[var(--color-ink)] shadow-sm ${showLines ? 'bg-black/5 hover:bg-white/60' : 'bg-white/60 hover:bg-black/5'}`}
+              title={showLines ? "Tắt tự động căn dòng kẻ" : "Bật tự động căn dòng kẻ"}
+            >
+              <AlignJustify size={20} strokeWidth={2.5} />
+            </button>
+          )}
+
           <button 
             onClick={addStickyNote}
             className="p-2 bg-white/60 backdrop-blur-sm rounded-full border-2 border-[var(--color-ink)] hover:bg-[var(--color-pastel-pink)] transition-colors cursor-pointer text-[var(--color-ink)] shadow-sm"
@@ -377,7 +388,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
                   requestAnimationFrame(() => handleCaretCenter(false));
                 }}
                 placeholder="Gõ nội dung Markdown & LaTeX tại đây..."
-                className="w-full min-h-full resize-none outline-none notebook-body bg-transparent lined-paper pl-[60px] pr-8 pt-8 pb-[50vh] overflow-hidden block relative z-0"
+                className={`w-full min-h-full resize-none outline-none notebook-body bg-transparent ${showLines ? 'lined-paper' : ''} pl-[60px] pr-8 pt-8 pb-[50vh] overflow-hidden block relative z-0`}
                 spellCheck={false}
               />
               {/* Sticky Notes for Editor */}
@@ -408,7 +419,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
                   title="PDF Viewer"
                 />
               ) : (
-                <div className="notebook-body bg-transparent lined-paper prose-notebook pl-[60px] pr-8 pt-8 pb-[50vh] min-h-full h-fit flex flex-col min-w-0 relative z-0 print:h-auto print:min-h-0 print:pb-0">
+                <div className={`notebook-body bg-transparent ${showLines ? 'lined-paper-preview' : ''} prose-notebook pl-[60px] pr-8 pt-8 pb-[50vh] min-h-full h-fit flex flex-col min-w-0 relative z-0 print:h-auto print:min-h-0 print:pb-0`}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkMath, remarkGfm, remarkBreaks]} 
                     rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema], rehypeKatex, rehypeSlug, rehypeHighlight]}
