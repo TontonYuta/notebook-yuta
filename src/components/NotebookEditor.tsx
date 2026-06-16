@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
@@ -166,7 +168,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
     );
   }
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (notebook.type === 'pdf') {
       try {
         const iframe = document.querySelector('iframe[title="PDF Viewer"]') as HTMLIFrameElement;
@@ -183,13 +185,87 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
       return;
     }
     
-    setViewMode('preview');
+    const previousViewMode = viewMode;
+    setViewMode('split');
     setIsPrinting(true);
-    document.body.classList.add('printing-mode');
-    setTimeout(() => {
-      window.print();
-      setIsPrinting(false);
-      document.body.classList.remove('printing-mode');
+    
+    // Wait for the layout to change to 'split' and settle
+    setTimeout(async () => {
+      try {
+        const deskArea = document.getElementById('print-capture-area');
+        const editorScroller = document.getElementById('editor-scroller');
+        const previewScroller = document.getElementById('preview-scroller');
+        
+        if (!deskArea) return;
+
+        const originalEditorScroll = editorScroller?.scrollTop || 0;
+        const originalPreviewScroll = previewScroller?.scrollTop || 0;
+
+        const scrollHeight = Math.max(
+          editorScroller?.scrollHeight || 0,
+          previewScroller?.scrollHeight || 0
+        );
+        let clientHeight = deskArea.clientHeight;
+        
+        if (clientHeight <= 0) clientHeight = 800; // Fallback
+
+        // Setup PDF (landscape because split view is wide)
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'px',
+          format: [deskArea.clientWidth, deskArea.clientHeight]
+        });
+
+        // Hide scrollbars while capturing to make it look clean
+        if (editorScroller) editorScroller.style.overflow = 'hidden';
+        if (previewScroller) previewScroller.style.overflow = 'hidden';
+
+        let currentScroll = 0;
+        let isFirstPage = true;
+
+        while (currentScroll < scrollHeight) {
+          if (editorScroller) editorScroller.scrollTo(0, currentScroll);
+          if (previewScroller) previewScroller.scrollTo(0, currentScroll);
+          
+          // Small delay to let rendering and syntax highlighting catch up
+          await new Promise(r => setTimeout(r, 400));
+          
+          const canvas = await html2canvas(deskArea, {
+            scale: 2, 
+            useCORS: true,
+            logging: false,
+            backgroundColor: null,
+            ignoreElements: (element) => element.classList.contains('no-print') || element.classList.contains('print:hidden') || element.classList.contains('print\\:hidden')
+          });
+          
+          const imgData = canvas.toDataURL('image/jpeg', 0.95);
+          
+          if (!isFirstPage) {
+            pdf.addPage([deskArea.clientWidth, deskArea.clientHeight], 'landscape');
+          }
+          pdf.addImage(imgData, 'JPEG', 0, 0, deskArea.clientWidth, deskArea.clientHeight);
+          isFirstPage = false;
+          
+          currentScroll += clientHeight;
+        }
+
+        pdf.save(`${notebook.name}.pdf`);
+        
+        // Restore elements
+        if (editorScroller) {
+            editorScroller.style.overflow = 'auto';
+            editorScroller.scrollTo(0, originalEditorScroll);
+        }
+        if (previewScroller) {
+            previewScroller.style.overflow = 'auto';
+            previewScroller.scrollTo(0, originalPreviewScroll);
+        }
+      } catch (err) {
+        console.error("Error creating PDF", err);
+      } finally {
+        setIsPrinting(false);
+        setViewMode(previousViewMode);
+      }
     }, 500);
   };
 
@@ -358,13 +434,24 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
         </div>
       </div>
 
+      {/* Loading Overlay for Print */}
+      {isPrinting && (
+        <div className="fixed inset-0 z-[100] bg-white/80 backdrop-blur-sm flex items-center justify-center no-print">
+          <div className="bg-white border-2 border-[var(--color-ink)] p-6 rounded-2xl shadow-[8px_8px_0px_var(--color-ink)] flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-[var(--color-red-pen)] border-t-transparent rounded-full animate-spin"></div>
+            <h3 className="text-xl font-bold font-heading text-[var(--color-ink)]">Đang tạo bản scan PDF...</h3>
+            <p className="text-gray-500 text-sm">Vui lòng chờ một chút để ứng dụng chụp lại quyển vở.</p>
+          </div>
+        </div>
+      )}
+
       {/* Desk Area with Sheets */}
-      <div className="w-full flex-grow flex gap-6 relative overflow-hidden print:overflow-visible print:block">
+      <div id="print-capture-area" className="w-full flex-grow flex gap-6 relative overflow-hidden print:overflow-visible print:block">
         
         {/* Editor Half */}
         {notebook.type !== 'pdf' && (viewMode === 'edit' || viewMode === 'split') && (
           <div 
-            className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' ? 'hidden md:flex' : 'flex'} print:hidden`}
+            className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' ? 'hidden md:flex' : 'flex'}`}
             data-color={notebook.color || 'default'}
           >
             <div className="flex-grow overflow-y-auto w-full relative" id="editor-scroller">
