@@ -359,7 +359,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
       </div>
 
       {/* Desk Area with Sheets */}
-      <div className="w-full flex-grow flex gap-6 relative overflow-hidden print:overflow-visible">
+      <div className="w-full flex-grow flex gap-6 relative overflow-hidden print:overflow-visible print:block">
         
         {/* Editor Half */}
         {notebook.type !== 'pdf' && (viewMode === 'edit' || viewMode === 'split') && (
@@ -539,7 +539,7 @@ function DraggableSticky({ sticky, onUpdate, onDelete, onMove }: { sticky: Stick
 
   return (
     <div 
-      className={`absolute w-48 min-h-[140px] p-3 pt-4 sticky-note flex flex-col gap-1 shadow-md z-10 ${colorMap[sticky.color] || colorMap.yellow} print:shadow-none print:border print:border-gray-200`}
+      className={`absolute w-48 min-h-[140px] p-3 pt-4 sticky-note flex flex-col gap-1 shadow-md z-10 ${colorMap[sticky.color] || colorMap.yellow} print:hidden`}
       style={{ 
         transform: `rotate(${sticky.rotation}deg)`,
         left: sticky.position.x,

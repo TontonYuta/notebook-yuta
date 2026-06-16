@@ -175,34 +175,42 @@ body {
   }
 
   .prose-notebook {
-    font-size: 13pt !important;
+    font-size: 11pt !important;
     line-height: 1.8 !important;
     max-width: 100% !important;
+    column-count: 2;
+    column-gap: 15mm;
   }
   
   .prose-notebook h1, .prose-notebook h2, .prose-notebook h3 {
     break-after: avoid;
     page-break-after: avoid;
+    column-span: all;
   }
 
   /* Prevent elements from blowing out the page width and causing shrink-to-fit */
-  img {
+  img, svg, canvas {
     max-width: 100% !important;
     height: auto !important;
   }
 
-  pre, code, a {
+  pre, code, a, p, span, div, .katex-display, .katex {
     white-space: pre-wrap !important;
     word-break: break-word !important;
-    overflow-wrap: anywhere !important;
+    overflow-wrap: break-word !important;
+    max-width: 100% !important;
   }
 
   .prose-notebook pre {
     overflow-x: hidden !important;
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
   }
   
   .notebook-body {
+    overflow-wrap: break-word;
     word-wrap: break-word;
+    max-width: 100%;
   }
   
   .h-full, .min-h-full, .max-h-full {
