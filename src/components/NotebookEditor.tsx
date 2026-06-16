@@ -14,6 +14,10 @@ import getCaretCoordinates from 'textarea-caret';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Notebook, StickyNote } from '../types';
 import { Columns, Eye, Edit3, Printer, StickyNote as StickyIcon, X, Plus, Search, ChevronUp, ChevronDown, Pin, HelpCircle, AlignJustify } from 'lucide-react';
+import { DraggableSticky } from './DraggableSticky';
+import { CheatSheetModal } from './CheatSheetModal';
+import { AIToolbar } from './AIToolbar';
+import { MarkdownPreview } from './MarkdownPreview';
 
 interface Props {
   notebook: Notebook | null;
@@ -22,27 +26,6 @@ interface Props {
 }
 
 type ViewMode = 'edit' | 'split' | 'preview';
-
-const processHighlight = (text: string) => {
-  const parts = text.split(/(```[\s\S]*?```|`[^`]+`|\$\$[\s\S]*?\$\$|\$[^$]+\$)/g);
-  return parts.map((part, index) => {
-    if (index % 2 === 1) return part; // Inside code block or math
-    return part.replace(/==([^=]+)==/g, '<mark>$1</mark>');
-  }).join('');
-};
-
-const customSchema = {
-  ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames || []), 'mark', 'details', 'summary', 'iframe'],
-  attributes: {
-    ...defaultSchema.attributes,
-    '*': [...(defaultSchema.attributes?.['*'] || []), 'style', 'className', 'align'],
-    span: ['style'],
-    p: ['align'],
-    img: ['src', 'alt', 'width', 'height', 'align'],
-    iframe: ['src', 'width', 'height', 'allowfullscreen', 'allow', 'frameborder']
-  }
-};
 
 export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>('split');
@@ -53,6 +36,9 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
   const [showHint, setShowHint] = useState(false);
   const [showLines, setShowLines] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  const [aiMenuPos, setAiMenuPos] = useState<{ top: number, left: number } | null>(null);
+  const [selectedText, setSelectedText] = useState('');
 
   const searchMatches = useMemo(() => {
     if (!notebook || !searchQuery || notebook.type === 'pdf') return [];
@@ -131,6 +117,109 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
     setIsSearchActive(false);
   };
 
+  const handleTextSelection = () => {
+    // 1. Check window selection first (for preview pane)
+    const selection = window.getSelection();
+    let text = selection?.toString() || '';
+    let isFromTextarea = false;
+
+    // 2. Check textarea selection
+    if (textareaRef.current && document.activeElement === textareaRef.current) {
+      const start = textareaRef.current.selectionStart;
+      const end = textareaRef.current.selectionEnd;
+      if (start !== undefined && end !== undefined && start !== end && notebook) {
+        text = notebook.content.substring(start, end);
+        isFromTextarea = true;
+      }
+    }
+
+    text = text.trim();
+
+    if (text.length > 0) {
+      setSelectedText(text);
+
+      if (isFromTextarea && textareaRef.current) {
+        try {
+          const start = Math.min(textareaRef.current.selectionStart, textareaRef.current.selectionEnd);
+          const end = Math.max(textareaRef.current.selectionStart, textareaRef.current.selectionEnd);
+          const caretStart = getCaretCoordinates(textareaRef.current, start);
+          const caretEnd = getCaretCoordinates(textareaRef.current, end);
+          const rect = textareaRef.current.getBoundingClientRect();
+          
+          let leftPos = rect.left + caretEnd.left - 150;
+          let topPos = rect.top + caretStart.top - 50;
+          
+          const vw = document.documentElement.clientWidth;
+          leftPos = Math.max(10, Math.min(leftPos, vw - 310)); // bounded width
+
+          setAiMenuPos({
+            top: topPos,
+            left: leftPos,
+          });
+        } catch (e) {
+          // fallback
+        }
+      } else if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          let leftPos = rect.left + rect.width / 2 - 150;
+          let topPos = rect.top - 50;
+          
+          const vw = document.documentElement.clientWidth;
+          leftPos = Math.max(10, Math.min(leftPos, vw - 310));
+          
+          setAiMenuPos({
+            top: topPos,
+            left: leftPos,
+          });
+        }
+      }
+    } else {
+      setSelectedText('');
+      setAiMenuPos(null);
+    }
+  };
+
+  const handleAskAI = (ai: 'gemini' | 'chatgpt' | 'grok') => {
+    const prompt = `[Role]: Bạn là một trợ lý học tập xuất sắc, có khả năng giải thích các khái niệm phức tạp một cách đơn giản và trực quan.
+[Context]: Tôi đang đọc tài liệu và có thắc mắc về đoạn nội dung được trích dẫn.
+[Task]: Hãy giải thích chi tiết, cặn kẽ ý nghĩa của đoạn nội dung này. Giảng giải như đang dạy cho một người mới bắt đầu học khái niệm này.
+[Format]: Trình bày rõ ràng, chia thành các ý nhỏ dễ hiểu và cung cấp ví dụ thực tế nếu cần.
+
+Nội dung cần giải thích:
+"${selectedText}"`;
+    navigator.clipboard.writeText(prompt);
+    
+    let url = '';
+    if (ai === 'gemini') url = 'https://gemini.google.com/app';
+    if (ai === 'chatgpt') url = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
+    if (ai === 'grok') url = 'https://grok.com/';
+    
+    if (url) {
+      if (ai !== 'chatgpt') {
+         // ChatGPT has direct URL query, others need clipboard paste instruction
+         alert(`Đã copy câu lệnh vào Clipboard!\n\nNhấn Ctrl+V (hoặc Cmd+V) để dán vào ${ai} nhé.`);
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+    setAiMenuPos(null);
+  };
+
+  useEffect(() => {
+    document.addEventListener('mouseup', handleTextSelection);
+    document.addEventListener('touchend', handleTextSelection);
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift' || e.key.startsWith('Arrow')) {
+        handleTextSelection();
+      }
+    });
+    return () => {
+      document.removeEventListener('mouseup', handleTextSelection);
+      document.removeEventListener('touchend', handleTextSelection);
+    };
+  }, [notebook?.content]);
+
   const handleCaretCenter = (smooth = false) => {
     if (!textareaRef.current) return;
     const scroller = document.getElementById('editor-scroller');
@@ -192,45 +281,58 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
     // Wait for the layout to change to 'split' and settle
     setTimeout(async () => {
       try {
-        const deskArea = document.getElementById('print-capture-area');
-        const editorScroller = document.getElementById('editor-scroller');
+        const previewContainer = document.getElementById('print-preview-container');
         const previewScroller = document.getElementById('preview-scroller');
         
-        if (!deskArea) return;
+        if (!previewContainer || !previewScroller) return;
 
-        const originalEditorScroll = editorScroller?.scrollTop || 0;
-        const originalPreviewScroll = previewScroller?.scrollTop || 0;
-
-        const scrollHeight = Math.max(
-          editorScroller?.scrollHeight || 0,
-          previewScroller?.scrollHeight || 0
-        );
-        let clientHeight = deskArea.clientHeight;
+        const originalPreviewScroll = previewScroller.scrollTop;
+        // Evaluate the full content height that we need to capture
+        const scrollHeight = previewScroller.scrollHeight;
+        
+        let clientHeight = previewContainer.clientHeight;
+        let clientWidth = previewContainer.clientWidth;
         
         if (clientHeight <= 0) clientHeight = 800; // Fallback
+        if (clientWidth <= 0) clientWidth = 600; // Fallback
 
-        // Setup PDF (landscape because split view is wide)
+        // Setup PDF (portrait for a single notebook page)
         const pdf = new jsPDF({
-          orientation: 'landscape',
+          orientation: 'portrait',
           unit: 'px',
-          format: [deskArea.clientWidth, deskArea.clientHeight]
+          format: [clientWidth, clientHeight]
         });
 
-        // Hide scrollbars while capturing to make it look clean
-        if (editorScroller) editorScroller.style.overflow = 'hidden';
-        if (previewScroller) previewScroller.style.overflow = 'hidden';
+        // 1. Lock the preview container size so it doesn't expand
+        const originalContainerHeight = previewContainer.style.height;
+        const originalContainerMaxHeight = previewContainer.style.maxHeight;
+        const originalContainerOverflow = previewContainer.style.overflow;
+        
+        previewContainer.style.height = `${clientHeight}px`;
+        previewContainer.style.maxHeight = `${clientHeight}px`;
+        previewContainer.style.overflow = 'hidden';
+
+        // 2. Expand the scroller to full height to disable inner scrolling (html2canvas issue)
+        const originalScrollerHeight = previewScroller.style.height;
+        const originalScrollerMaxHeight = previewScroller.style.maxHeight;
+        const originalScrollerOverflow = previewScroller.style.overflow;
+        const originalScrollerTransform = previewScroller.style.transform;
+        
+        previewScroller.style.height = `${scrollHeight}px`;
+        previewScroller.style.maxHeight = 'none';
+        previewScroller.style.overflow = 'visible';
 
         let currentScroll = 0;
         let isFirstPage = true;
 
         while (currentScroll < scrollHeight) {
-          if (editorScroller) editorScroller.scrollTo(0, currentScroll);
-          if (previewScroller) previewScroller.scrollTo(0, currentScroll);
+          // 3. Translate the full-height scroller upwards inside the hidden-overflow container
+          previewScroller.style.transform = `translateY(-${currentScroll}px)`;
           
-          // Small delay to let rendering and syntax highlighting catch up
+          // Small delay to let rendering catch up
           await new Promise(r => setTimeout(r, 400));
           
-          const canvas = await html2canvas(deskArea, {
+          const canvas = await html2canvas(previewContainer, {
             scale: 2, 
             useCORS: true,
             logging: false,
@@ -241,9 +343,9 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
           const imgData = canvas.toDataURL('image/jpeg', 0.95);
           
           if (!isFirstPage) {
-            pdf.addPage([deskArea.clientWidth, deskArea.clientHeight], 'landscape');
+            pdf.addPage([clientWidth, clientHeight], 'portrait');
           }
-          pdf.addImage(imgData, 'JPEG', 0, 0, deskArea.clientWidth, deskArea.clientHeight);
+          pdf.addImage(imgData, 'JPEG', 0, 0, clientWidth, clientHeight);
           isFirstPage = false;
           
           currentScroll += clientHeight;
@@ -252,14 +354,17 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
         pdf.save(`${notebook.name}.pdf`);
         
         // Restore elements
-        if (editorScroller) {
-            editorScroller.style.overflow = 'auto';
-            editorScroller.scrollTo(0, originalEditorScroll);
-        }
-        if (previewScroller) {
-            previewScroller.style.overflow = 'auto';
-            previewScroller.scrollTo(0, originalPreviewScroll);
-        }
+        previewScroller.style.transform = originalScrollerTransform;
+        previewScroller.style.height = originalScrollerHeight;
+        previewScroller.style.maxHeight = originalScrollerMaxHeight;
+        previewScroller.style.overflow = originalScrollerOverflow;
+        
+        previewContainer.style.height = originalContainerHeight;
+        previewContainer.style.maxHeight = originalContainerMaxHeight;
+        previewContainer.style.overflow = originalContainerOverflow;
+        
+        previewScroller.scrollTo(0, originalPreviewScroll);
+        
       } catch (err) {
         console.error("Error creating PDF", err);
       } finally {
@@ -301,6 +406,11 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
   return (
     <div className={`notebook-editor-container w-full h-full flex flex-col relative px-4 md:px-8 py-6 print:p-0 ${isPrinting ? 'is-printing print:bg-white print:w-full print:block print:h-auto print:overflow-visible' : ''}`}>
       
+      {/* Floating AI Toolbar for selected text */}
+      {aiMenuPos && selectedText && !isPrinting && (
+        <AIToolbar pos={aiMenuPos} onAskAI={handleAskAI} />
+      )}
+
       {/* Top Header & Toolbar */}
       <div className="flex justify-between items-start md:items-center mb-6 z-20 shrink-0 gap-4 flex-col md:flex-row no-print">
         <div className="flex items-center pl-20 md:pl-24"> 
@@ -461,9 +571,12 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
                 onChange={(e) => {
                   onChange(e.target.value);
                   requestAnimationFrame(() => handleCaretCenter(false));
+                  setAiMenuPos(null);
+                  setSelectedText('');
                 }}
                 onSelect={() => {
                   requestAnimationFrame(() => handleCaretCenter(false));
+                  handleTextSelection();
                 }}
                 onClick={() => {
                   setIsSearchActive(false);
@@ -490,6 +603,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
         {/* Preview Half (Markdown or PDF) */}
         {((notebook.type !== 'pdf' && (viewMode === 'preview' || viewMode === 'split')) || notebook.type === 'pdf') && (
           <div 
+            id="print-preview-container"
             className={`flex-1 min-w-0 h-full notebook-paper flex flex-col relative ${viewMode === 'split' && notebook.type !== 'pdf' ? 'flex' : 'flex'} print:h-auto print:block`}
             data-color={notebook.color || 'default'}
           >
@@ -502,12 +616,7 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
                 />
               ) : (
                 <div className={`notebook-body bg-transparent ${showLines ? 'lined-paper-preview' : ''} prose-notebook pl-[60px] pr-8 pt-8 pb-[50vh] min-h-full h-fit flex flex-col min-w-0 relative z-0 print:h-auto print:min-h-0 print:p-0`}>
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkMath, remarkGfm, remarkBreaks]} 
-                    rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema], rehypeKatex, rehypeSlug, rehypeHighlight]}
-                  >
-                    {processHighlight(notebook.content || '*Chưa có nội dung...*')}
-                  </ReactMarkdown>
+                  <MarkdownPreview content={notebook.content} />
                 </div>
               )}
               {/* Sticky Notes for Preview */}
@@ -527,141 +636,8 @@ export function NotebookEditor({ notebook, onChange, onUpdateStickies }: Props) 
 
       {/* Hint Modal */}
       {showHint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm print:hidden">
-          <div className="bg-[var(--color-cream)] border-2 border-[var(--color-ink)] rounded-2xl shadow-[8px_8px_0px_var(--color-ink)] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b-2 border-dashed border-[var(--color-ink)]/20 bg-[var(--color-pastel-blue)]/20">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <HelpCircle size={24} className="text-[var(--color-ink)]" />
-                Hướng dẫn cú pháp (Cheat Sheet)
-              </h2>
-              <button onClick={() => setShowHint(false)} className="p-1 hover:bg-black/10 rounded-full transition-colors cursor-pointer">
-                <X size={24} strokeWidth={2.5} />
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto overflow-x-hidden flex-grow notebook-body !text-base space-y-6">
-              <section>
-                <h3 className="font-bold text-lg mb-2 text-[var(--color-red-pen)] flex items-center gap-2 border-b-2 border-[var(--color-ink)]/10 pb-1">1. Định dạng cơ bản</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li><strong>In đậm</strong>: <code>**nội dung**</code></li>
-                  <li><em>In nghiêng</em>: <code>*nội dung*</code></li>
-                  <li><del>Gạch ngang</del>: <code>~~nội dung~~</code></li>
-                  <li><mark>Highlight vàng</mark>: <code>==nội dung==</code></li>
-                  <li>Chú thích (Footnote): <code>Nguồn[^1]</code> và giải thích ở dưới cùng <code>[^1]: Chi tiết nguồn</code></li>
-                </ul>
-              </section>
-
-              <section>
-                <h3 className="font-bold text-lg mb-2 text-[var(--color-green-pen)] border-b-2 border-[var(--color-ink)]/10 flex items-center gap-2 pb-1">2. Toán học (LaTeX)</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>Công thức cùng dòng: <code>$E=mc^2$</code></li>
-                  <li>Công thức khối (căn giữa):<br/>
-                    <code>$$<br/>{"\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}"}<br/>$$</code>
-                  </li>
-                  <li>Phân số: <code>{"$\\frac{a}{b}$"}</code>, Căn bậc hai: <code>{"$\\sqrt{x}$"}</code></li>
-                </ul>
-              </section>
-
-              <section>
-                <h3 className="font-bold text-lg mb-2 text-purple-600 border-b-2 border-[var(--color-ink)]/10 flex items-center gap-2 pb-1">3. Cấu trúc HTML & Nâng cao</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>Đổi màu chữ: <code>&lt;span style="color: red;"&gt;chữ đỏ&lt;/span&gt;</code></li>
-                  <li>Căn lề hình ảnh: <code>&lt;img align="center" src="..." width="300"/&gt;</code></li>
-                  <li>Khối nội dung ẩn/hiện (Collapsible):<br/>
-                    <pre className="bg-black/5 p-2 rounded border border-[var(--color-ink)]/20 text-sm mt-1 whitespace-pre-wrap"><code>{"<details>\n  <summary><b>Bấm xem chi tiết</b></summary>\n  Nội dung bị ẩn đi...\n</details>"}</code></pre>
-                  </li>
-                  <li>Liên kết neo (TOC): <code>{"[Tên mục](#1-ten-muc)"}</code> (Viết thường, thay dấu cách bằng gạch nối)</li>
-                  <li>Bỏ qua markdown bằng gạch chéo ngược: <code>{"\\*Không bị in nghiêng\\*"}</code></li>
-                </ul>
-              </section>
-
-              <section>
-                <h3 className="font-bold text-lg mb-2 border-b-2 border-[var(--color-ink)]/10 flex items-center gap-2 pb-1">4. Khối Code & Khác</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>Code trên cùng 1 dòng: <code>`console.log("hello")`</code></li>
-                  <li>Khối Code nhiều dòng có màu cú pháp:
-                    <pre className="bg-black/5 p-2 rounded border border-[var(--color-ink)]/20 text-sm mt-1"><code>```javascript<br/>function add(a, b) &#123;<br/>  return a + b;<br/>&#125;<br/>```</code></pre>
-                  </li>
-                  <li>Trích dẫn (Quote): <code>&gt; Câu trích dẫn</code></li>
-                </ul>
-              </section>
-            </div>
-          </div>
-        </div>
+        <CheatSheetModal onClose={() => setShowHint(false)} />
       )}
-    </div>
-  );
-}
-
-function DraggableSticky({ sticky, onUpdate, onDelete, onMove }: { sticky: StickyNote, onUpdate: (c: string) => void, onDelete: () => void, onMove: (x: number, y: number) => void }) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-
-  const colorMap = {
-    pink: 'bg-[var(--color-pastel-pink)]',
-    green: 'bg-[var(--color-pastel-green)]',
-    blue: 'bg-[var(--color-pastel-blue)]',
-    yellow: 'bg-[var(--color-highlighter)]'
-  };
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    setIsDragging(true);
-    setDragOffset({
-      x: e.clientX - sticky.position.x,
-      y: e.clientY - sticky.position.y
-    });
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (isDragging) {
-      onMove(e.clientX - dragOffset.x, e.clientY - dragOffset.y);
-    }
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    setIsDragging(false);
-  };
-
-  return (
-    <div 
-      className={`absolute w-48 min-h-[140px] p-3 pt-4 sticky-note flex flex-col gap-1 shadow-md z-10 ${colorMap[sticky.color] || colorMap.yellow} print:hidden`}
-      style={{ 
-        transform: `rotate(${sticky.rotation}deg)`,
-        left: sticky.position.x,
-        top: sticky.position.y,
-        cursor: isDragging ? 'grabbing' : 'auto'
-      }}
-    >
-      {/* Pin Icon overlaying the top center */}
-      <div className="absolute top-[-10px] left-1/2 -translate-x-1/2 text-red-500 drop-shadow-md z-20">
-        <Pin size={28} className="fill-red-500" strokeWidth={1.5} />
-      </div>
-
-      <div 
-        className="w-full h-6 cursor-grab active:cursor-grabbing flex justify-between items-center opacity-40 hover:opacity-100 transition-opacity print:hidden"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-      >
-        <div className="flex-grow flex gap-1 justify-center px-2">
-          {/* subtle drag handle texture */}
-          <div className="w-1 h-1 rounded-full bg-[var(--color-ink)] opacity-50"></div>
-          <div className="w-1 h-1 rounded-full bg-[var(--color-ink)] opacity-50"></div>
-          <div className="w-1 h-1 rounded-full bg-[var(--color-ink)] opacity-50"></div>
-        </div>
-        <button onClick={onDelete} className="p-1 hover:text-[var(--color-red-pen)] cursor-pointer" onPointerDown={e => e.stopPropagation()}>
-          <X size={16} strokeWidth={3} />
-        </button>
-      </div>
-      <textarea 
-        value={sticky.content}
-        onChange={e => onUpdate(e.target.value)}
-        placeholder="Ghi nhớ..."
-        className="w-full flex-grow bg-transparent outline-none resize-none notebook-body !line-height-[1.4] !text-base print:overflow-hidden print:resize-none"
-        spellCheck={false}
-      />
     </div>
   );
 }
