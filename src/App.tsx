@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Menu } from 'lucide-react';
-import { Notebook } from './types';
-import { Sidebar } from './components/Sidebar';
-import { NotebookEditor } from './components/NotebookEditor';
+import React, { useState, useEffect } from "react";
+import { Menu } from "lucide-react";
+import { Notebook } from "./types";
+import { Sidebar } from "./components/Sidebar";
+import { NotebookEditor } from "./components/NotebookEditor";
 
 export default function App() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
@@ -12,25 +12,25 @@ export default function App() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('studygram_notebooks_v3');
+    const saved = localStorage.getItem("studygram_notebooks_v3");
     if (saved) {
       try {
         const parsed: Notebook[] = JSON.parse(saved);
-        setNotebooks(parsed.map(n => ({ ...n, stickies: n.stickies || [] })));
+        setNotebooks(parsed.map((n) => ({ ...n, stickies: n.stickies || [] })));
         if (parsed.length > 0) {
-          const textNb = parsed.find(n => n.type !== 'pdf');
+          const textNb = parsed.find((n) => n.type !== "pdf");
           if (textNb) setActiveTextId(textNb.id);
-          const pdfNb = parsed.find(n => n.type === 'pdf');
+          const pdfNb = parsed.find((n) => n.type === "pdf");
           if (pdfNb) setActivePdfId(pdfNb.id);
         }
       } catch (e) {
-        console.error('Failed to parse notebooks');
+        console.error("Failed to parse notebooks");
       }
     } else {
       // Default initial notebooks
       const hdsdNotebook: Notebook = {
         id: crypto.randomUUID(),
-        name: 'HDSD & Demo LaTeX',
+        name: "HDSD & Demo LaTeX",
         content: `# Hướng Dẫn Sử Dụng
 
 Chào mừng bạn đến với quyển vở Offline! Không gian này hỗ trợ gõ bài học với phong cách Studygram siêu dễ thương.
@@ -87,15 +87,15 @@ Bạn có thể kết hợp HTML hoặc các ký hiệu Markdown mới:
 - Bấm nút giấy nhớ thả ghim thả ga.
 - Bấm biểu tượng \`Máy In\` để lưu ra file PDF nhé!`,
         lastModified: Date.now(),
-        stickies: []
+        stickies: [],
       };
 
       const defaultNotebook: Notebook = {
         id: crypto.randomUUID(),
-        name: 'Vở Nháp',
-        content: '# Nháp\n\nNơi ghi chép nhanh...',
+        name: "Vở Nháp",
+        content: "# Nháp\n\nNơi ghi chép nhanh...",
         lastModified: Date.now(),
-        stickies: []
+        stickies: [],
       };
       setNotebooks([hdsdNotebook, defaultNotebook]);
       setActiveTextId(hdsdNotebook.id);
@@ -105,139 +105,160 @@ Bạn có thể kết hợp HTML hoặc các ký hiệu Markdown mới:
 
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('studygram_notebooks_v3', JSON.stringify(notebooks));
+      const timer = setTimeout(() => {
+        localStorage.setItem(
+          "studygram_notebooks_v3",
+          JSON.stringify(notebooks),
+        );
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [notebooks, isLoaded]);
 
-  const activeTextNb = notebooks.find(n => n.id === activeTextId) || null;
-  const activePdfNb = notebooks.find(n => n.id === activePdfId) || null;
+  const activeTextNb = notebooks.find((n) => n.id === activeTextId) || null;
+  const activePdfNb = notebooks.find((n) => n.id === activePdfId) || null;
 
   const handleUpdateContent = (id: string, newContent: string) => {
-    setNotebooks(prev => prev.map(n => 
-      n.id === id 
-        ? { ...n, content: newContent, lastModified: Date.now() } 
-        : n
-    ));
+    setNotebooks((prev) =>
+      prev.map((n) =>
+        n.id === id
+          ? { ...n, content: newContent, lastModified: Date.now() }
+          : n,
+      ),
+    );
   };
 
-  const handleUpdateStickies = (id: string, stickies: Notebook['stickies']) => {
-    setNotebooks(prev => prev.map(n => 
-      n.id === id 
-        ? { ...n, stickies, lastModified: Date.now() } 
-        : n
-    ));
+  const handleUpdateStickies = (id: string, stickies: Notebook["stickies"]) => {
+    setNotebooks((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, stickies, lastModified: Date.now() } : n,
+      ),
+    );
   };
 
   const handleAddNotebook = () => {
     const newNotebook: Notebook = {
       id: crypto.randomUUID(),
-      name: 'Quyển vở mới',
-      content: '',
+      name: "Quyển vở mới",
+      content: "",
       lastModified: Date.now(),
-      stickies: []
+      stickies: [],
     };
     setNotebooks([newNotebook, ...notebooks]);
     setActiveTextId(newNotebook.id);
     if (window.innerWidth < 768) {
-       setIsSidebarOpen(false);
+      setIsSidebarOpen(false);
     }
   };
 
   const handleDeleteNotebook = (id: string) => {
-    setNotebooks(prev => prev.filter(n => n.id !== id));
+    setNotebooks((prev) => prev.filter((n) => n.id !== id));
     if (activeTextId === id) setActiveTextId(null);
     if (activePdfId === id) setActivePdfId(null);
   };
 
   const handleRenameNotebook = (id: string, newName: string) => {
-    setNotebooks(prev => prev.map(n => 
-      n.id === id 
-        ? { ...n, name: newName, lastModified: Date.now() } 
-        : n
-    ));
+    setNotebooks((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, name: newName, lastModified: Date.now() } : n,
+      ),
+    );
   };
 
-  const handleChangeColor = (id: string, color: Notebook['color']) => {
-    setNotebooks(prev => prev.map(n => 
-      n.id === id 
-        ? { ...n, color, lastModified: Date.now() } 
-        : n
-    ));
+  const handleChangeColor = (id: string, color: Notebook["color"]) => {
+    setNotebooks((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, color, lastModified: Date.now() } : n,
+      ),
+    );
   };
 
-  const handleReorderNotebook = (movedId: string, destIndex: number, type: 'text' | 'pdf') => {
+  const handleReorderNotebook = (
+    movedId: string,
+    destIndex: number,
+    type: "text" | "pdf",
+  ) => {
     setNotebooks((prev) => {
-      const itemIndex = prev.findIndex(n => n.id === movedId);
+      const itemIndex = prev.findIndex((n) => n.id === movedId);
       if (itemIndex === -1) return prev;
       const item = prev[itemIndex];
-      
+
       let newNotebooks = [...prev];
       newNotebooks.splice(itemIndex, 1);
-      
-      const sameTypeItems = newNotebooks.filter(n => type === 'pdf' ? n.type === 'pdf' : n.type !== 'pdf');
-      
+
+      const sameTypeItems = newNotebooks.filter((n) =>
+        type === "pdf" ? n.type === "pdf" : n.type !== "pdf",
+      );
+
       if (destIndex < sameTypeItems.length) {
-         const targetId = sameTypeItems[destIndex].id;
-         const globalTargetIndex = newNotebooks.findIndex(n => n.id === targetId);
-         newNotebooks.splice(globalTargetIndex, 0, item);
+        const targetId = sameTypeItems[destIndex].id;
+        const globalTargetIndex = newNotebooks.findIndex(
+          (n) => n.id === targetId,
+        );
+        newNotebooks.splice(globalTargetIndex, 0, item);
       } else {
-         if (sameTypeItems.length > 0) {
-            const lastId = sameTypeItems[sameTypeItems.length - 1].id;
-            const globalLastIndex = newNotebooks.findIndex(n => n.id === lastId);
-            newNotebooks.splice(globalLastIndex + 1, 0, item);
-         } else {
-            // No items of this type, find where to put it
-            if (type === 'text') {
-               newNotebooks.unshift(item); // Texts at the top
-            } else {
-               newNotebooks.push(item); // Pdfs at the bottom
-            }
-         }
+        if (sameTypeItems.length > 0) {
+          const lastId = sameTypeItems[sameTypeItems.length - 1].id;
+          const globalLastIndex = newNotebooks.findIndex(
+            (n) => n.id === lastId,
+          );
+          newNotebooks.splice(globalLastIndex + 1, 0, item);
+        } else {
+          // No items of this type, find where to put it
+          if (type === "text") {
+            newNotebooks.unshift(item); // Texts at the top
+          } else {
+            newNotebooks.push(item); // Pdfs at the bottom
+          }
+        }
       }
       return newNotebooks;
     });
   };
 
-  const handleImportNotebook = (name: string, content: string, type: 'text' | 'pdf' = 'text') => {
+  const handleImportNotebook = (
+    name: string,
+    content: string,
+    type: "text" | "pdf" = "text",
+  ) => {
     const newNotebook: Notebook = {
       id: crypto.randomUUID(),
       name,
       content,
       type,
       lastModified: Date.now(),
-      stickies: []
+      stickies: [],
     };
     setNotebooks([newNotebook, ...notebooks]);
-    if (type === 'pdf') {
-       setActivePdfId(newNotebook.id);
+    if (type === "pdf") {
+      setActivePdfId(newNotebook.id);
     } else {
-       setActiveTextId(newNotebook.id);
+      setActiveTextId(newNotebook.id);
     }
     if (window.innerWidth < 768) {
-       setIsSidebarOpen(false);
+      setIsSidebarOpen(false);
     }
   };
 
   const handleSelectNotebook = (id: string) => {
-     const nb = notebooks.find(n => n.id === id);
-     if (!nb) return;
-     
-     if (nb.type === 'pdf') {
-       setActivePdfId(prev => prev === id ? null : id); // toggle PDF
-     } else {
-       setActiveTextId(id);
-     }
-     
-     if (window.innerWidth < 768) {
-       setIsSidebarOpen(false);
-     }
+    const nb = notebooks.find((n) => n.id === id);
+    if (!nb) return;
+
+    if (nb.type === "pdf") {
+      setActivePdfId((prev) => (prev === id ? null : id)); // toggle PDF
+    } else {
+      setActiveTextId(id);
+    }
+
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
   };
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[var(--color-cream)] flex-row print:h-auto print:overflow-visible print:block">
-      
       {/* Sidebar Area */}
-      <Sidebar 
+      <Sidebar
         notebooks={notebooks}
         activeIds={[activeTextId, activePdfId].filter(Boolean) as string[]}
         isOpen={isSidebarOpen}
@@ -250,23 +271,24 @@ Bạn có thể kết hợp HTML hoặc các ký hiệu Markdown mới:
         onReorder={handleReorderNotebook}
         onImport={handleImportNotebook}
       />
-      
+
       {/* Main Content Area */}
       <main className="flex-grow flex h-full relative transition-all duration-300 overflow-hidden print:overflow-visible overflow-x-auto min-w-0">
-        
         {/* Toggle Sidebar Button */}
-        <button 
-           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-           className={`absolute top-6 left-4 md:left-6 z-30 p-2 text-[var(--color-ink)] bg-white/60 backdrop-blur-[2px] rounded-full border-2 border-[var(--color-ink)] transition-transform hover:scale-105 cursor-pointer no-print shadow-sm ${isSidebarOpen ? 'hidden md:hidden' : ''}`}
-           title="Mở giá sách"
-         >
-           <Menu size={28} strokeWidth={2.5} />
-         </button>
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className={`absolute top-6 left-4 md:left-6 z-30 p-2 text-[var(--color-ink)] bg-white/60 backdrop-blur-[2px] rounded-full border-2 border-[var(--color-ink)] transition-transform hover:scale-105 cursor-pointer no-print shadow-sm ${isSidebarOpen ? "hidden md:hidden" : ""}`}
+          title="Mở giá sách"
+        >
+          <Menu size={28} strokeWidth={2.5} />
+        </button>
 
         {activeTextNb && (
-          <div className={`flex-1 min-w-0 h-full ${activePdfNb ? 'hidden md:block' : 'block'}`}>
-            <NotebookEditor 
-              notebook={activeTextNb} 
+          <div
+            className={`flex-1 min-w-0 h-full ${activePdfNb ? "hidden md:block" : "block"}`}
+          >
+            <NotebookEditor
+              notebook={activeTextNb}
               onChange={(c) => handleUpdateContent(activeTextNb.id, c)}
               onUpdateStickies={(s) => handleUpdateStickies(activeTextNb.id, s)}
             />
@@ -274,9 +296,11 @@ Bạn có thể kết hợp HTML hoặc các ký hiệu Markdown mới:
         )}
 
         {activePdfNb && (
-          <div className={`flex-1 min-w-0 h-full ${activeTextNb ? 'border-l-2 border-[var(--color-ink)]/20 shadow-[-4px_0_15px_rgba(0,0,0,0.03)]' : ''}`}>
-            <NotebookEditor 
-              notebook={activePdfNb} 
+          <div
+            className={`flex-1 min-w-0 h-full ${activeTextNb ? "border-l-2 border-[var(--color-ink)]/20 shadow-[-4px_0_15px_rgba(0,0,0,0.03)]" : ""}`}
+          >
+            <NotebookEditor
+              notebook={activePdfNb}
               onChange={(c) => handleUpdateContent(activePdfNb.id, c)}
               onUpdateStickies={(s) => handleUpdateStickies(activePdfNb.id, s)}
             />
@@ -285,12 +309,12 @@ Bạn có thể kết hợp HTML hoặc các ký hiệu Markdown mới:
 
         {!activeTextNb && !activePdfNb && (
           <div className="w-full h-full flex flex-col items-center justify-center opacity-40">
-            <h2 className="notebook-title !text-3xl">Hãy mở một quyển vở ra để bắt đầu viết nhé!</h2>
+            <h2 className="notebook-title !text-3xl">
+              Hãy mở một quyển vở ra để bắt đầu viết nhé!
+            </h2>
           </div>
         )}
       </main>
-      
     </div>
   );
 }
-
