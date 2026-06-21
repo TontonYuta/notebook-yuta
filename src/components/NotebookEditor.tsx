@@ -720,6 +720,7 @@ Nội dung cần giải thích:
                   value={localContent}
                   onChange={(e) => {
                     handleContentChange(e.target.value);
+                    requestAnimationFrame(() => handleCaretCenter(false));
                     setAiMenuPos(null);
                     setSelectedText("");
                   }}
