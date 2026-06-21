@@ -56,19 +56,22 @@ const customSchema = {
   },
 };
 
+const REMARK_PLUGINS = [remarkMath, remarkGfm, remarkBreaks];
+const REHYPE_PLUGINS = [
+  rehypeRaw,
+  [rehypeSanitize, customSchema],
+  rehypeKatex,
+  rehypeSlug,
+  rehypeHighlight,
+];
+
 export const MarkdownPreview = React.memo(function MarkdownPreview({
   content,
 }: Props) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkMath, remarkGfm, remarkBreaks]}
-      rehypePlugins={[
-        rehypeRaw,
-        [rehypeSanitize, customSchema],
-        rehypeKatex,
-        rehypeSlug,
-        rehypeHighlight,
-      ]}
+      remarkPlugins={REMARK_PLUGINS as any}
+      rehypePlugins={REHYPE_PLUGINS as any}
     >
       {processHighlight(content || "*Chưa có nội dung...*")}
     </ReactMarkdown>

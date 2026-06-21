@@ -17,6 +17,7 @@ import rehypeHighlight from "rehype-highlight";
 import remarkBreaks from "remark-breaks";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import getCaretCoordinates from "textarea-caret";
+import TextareaAutosize from "react-textarea-autosize";
 import { Notebook, StickyNote } from "../types";
 import {
   Columns,
@@ -695,39 +696,15 @@ Nội dung cần giải thích:
               <div
                 className="flex-grow overflow-y-auto w-full relative"
                 id="editor-scroller"
-                onScroll={(e) => {
-                  const target = e.target as HTMLDivElement;
-                  const ratio =
-                    target.scrollTop /
-                    (target.scrollHeight - target.clientHeight || 1);
-                  const previewScroller =
-                    document.getElementById("preview-scroller");
-                  if (previewScroller && !previewScroller.dataset.isScrolling) {
-                    target.dataset.isScrolling = "true";
-                    const maxPreviewScroll =
-                      previewScroller.scrollHeight -
-                      previewScroller.clientHeight;
-                    previewScroller.scrollTo({ top: ratio * maxPreviewScroll });
-                    clearTimeout((target as any).scrollTimeout);
-                    (target as any).scrollTimeout = setTimeout(() => {
-                      target.dataset.isScrolling = "false";
-                    }, 50);
-                  }
-                }}
               >
-                <textarea
-                  ref={textareaRef}
+                <TextareaAutosize
+                  ref={textareaRef as any}
                   value={localContent}
                   onChange={(e) => {
                     handleContentChange(e.target.value);
                     requestAnimationFrame(() => handleCaretCenter(false));
                     setAiMenuPos(null);
                     setSelectedText("");
-                  }}
-                  onInput={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    target.style.height = "auto";
-                    target.style.height = `${target.scrollHeight}px`;
                   }}
                   onSelect={() => {
                     handleTextSelection();
@@ -767,24 +744,6 @@ Nội dung cần giải thích:
             <div
               className="flex-grow overflow-y-auto w-full overflow-x-auto p-4 relative print:overflow-visible print:h-auto"
               id="preview-scroller"
-              onScroll={(e) => {
-                const target = e.target as HTMLDivElement;
-                const ratio =
-                  target.scrollTop /
-                  (target.scrollHeight - target.clientHeight || 1);
-                const editorScroller =
-                  document.getElementById("editor-scroller");
-                if (editorScroller && !editorScroller.dataset.isScrolling) {
-                  target.dataset.isScrolling = "true";
-                  const maxEditorScroll =
-                    editorScroller.scrollHeight - editorScroller.clientHeight;
-                  editorScroller.scrollTo({ top: ratio * maxEditorScroll });
-                  clearTimeout((target as any).scrollTimeout);
-                  (target as any).scrollTimeout = setTimeout(() => {
-                    target.dataset.isScrolling = "false";
-                  }, 50);
-                }
-              }}
             >
               {notebook.type === "pdf" ? (
                 <iframe
